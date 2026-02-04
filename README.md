@@ -8,7 +8,7 @@ with teams, and publish selected content publicly with SEO optimization.
 
 ---
 
-## 🚀 Core Features
+## 🌌 Core Features
 
 ### Private Zone
 - Secure authentication (JWT + OAuth)
@@ -54,7 +54,7 @@ with teams, and publish selected content publicly with SEO optimization.
 
 ---
 
-## 🧠 Architecture Overview
+## 🏗️ Architecture Overview
 
 Lexora follows a layered and modular architecture:
 
