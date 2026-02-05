@@ -1,4 +1,30 @@
 spring:
-  profiles:
-    active: dev
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
 
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  mongodb:
+    uri: ${MONGO_URI}
+    database: ${MONGO_INITDB_DATABASE}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.mongo.MongoHealthContributorAutoConfiguration
+  mongodb:
+    database: ${MONGO_TEST_DATABASE}
+    uri: ${MONGO_TEST_URI}
