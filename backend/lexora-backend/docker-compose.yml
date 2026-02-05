@@ -1,0 +1,24 @@
+spring:
+  profiles: dev
+
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/lexora_db}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/lexora_mongo}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework: INFO
+    com.lexora: DEBUG
