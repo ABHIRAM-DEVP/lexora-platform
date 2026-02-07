@@ -17,6 +17,7 @@ target/
 .env
 .env.*
 *.env
+*.secret
 
 ### IntelliJ IDEA ###
 .idea

@@ -10,9 +10,15 @@ spring:
       ddl-auto: update
     show-sql: false
 
-  mongodb:
-    uri: ${MONGO_URI}
-    database: ${MONGO_INITDB_DATABASE}
+
+  data:
+    mongodb:
+      uri: ${MONGO_URI}
+      database: ${MONGO_INITDB_DATABASE}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS} 
 
 ---
 spring:
@@ -28,3 +34,6 @@ spring:
   mongodb:
     database: ${MONGO_TEST_DATABASE}
     uri: ${MONGO_TEST_URI}
+
+    
+
