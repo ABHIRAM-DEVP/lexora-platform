@@ -1,3 +1,4 @@
+
 package com.lexora.lexora_backend.auth.controller;
 
 import java.util.Map;
@@ -27,7 +28,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService; //Constructor-based Dependency Injection
+
+    private final AuthService authService; 
 
     @Autowired
     private UserRepository userRepository;
@@ -82,9 +84,7 @@ public ResponseEntity<?> refresh(@RequestBody RefreshTokenRequest request) {
     }
 
 
+
+
     
-
-
-
-
 }

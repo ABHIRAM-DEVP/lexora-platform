@@ -4,13 +4,17 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.lexora.lexora_backend.auth.dto.LoginRequest;
 import com.lexora.lexora_backend.auth.dto.LoginResponse;
 import com.lexora.lexora_backend.auth.dto.SignupRequest;
 import com.lexora.lexora_backend.auth.jwt.JwtUtil;
+import com.lexora.lexora_backend.common.exception.ForbiddenException;
 import com.lexora.lexora_backend.user.entity.RefreshToken;
 import com.lexora.lexora_backend.user.entity.Role;
 import com.lexora.lexora_backend.user.entity.User;
@@ -32,7 +36,7 @@ public class AuthService {
 
     
     
-
+    //register
     public void registerUser(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already in use");
@@ -48,7 +52,7 @@ public class AuthService {
     }
 
 
-
+    //login
     public LoginResponse login(LoginRequest request) {
     User user = userRepository.findByUsername(request.getUsername())
         .orElseThrow(() -> new RuntimeException("User not found"));
@@ -74,7 +78,7 @@ public class AuthService {
 }
 
 
-    
+    //refresh token
     public LoginResponse refreshAccessToken(String refreshToken) {
     RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
             .orElseThrow(() -> new RuntimeException("Refresh token not found"));
@@ -102,12 +106,14 @@ public class AuthService {
     return new LoginResponse(newAccessToken, newRefreshToken, "Token refreshed successfully 🔄");
 }
 
+//logout
+@Transactional
 public void logout(User user) {
     refreshTokenRepository.deleteByUser(user);
 }
 
 
-
+    //promote to admin
     public void promoteToAdmin(String email){
         User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new RuntimeException("User not found"));
@@ -121,6 +127,24 @@ public void logout(User user) {
     }
 
 
+    public String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ForbiddenException("User is not authenticated");
+        }
+        return authentication.getName(); // JWT subject = userId as string
+    }
+
+
+    // AuthService.java
+    public User getCurrentUser() {
+        String username = getCurrentUserId(); // JWT subject
+        return userRepository.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+
+
+
     
 }
-
