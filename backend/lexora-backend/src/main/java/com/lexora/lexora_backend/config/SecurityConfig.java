@@ -31,7 +31,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // TODO: replace with your frontend URL(s) in production
+        //replace with your frontend URL(s) in production
         config.setAllowedOrigins(List.of(
             "http://localhost:3000",          // dev
             "https://lexora-frontend.com"     // prod
@@ -59,6 +59,7 @@ public class SecurityConfig {
             .exceptionHandling(e -> e.authenticationEntryPoint(authEntryPoint))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+
                 // Public endpoints
                 .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/auth/refresh-token", "/api/auth/logout").permitAll()
 
@@ -67,6 +68,9 @@ public class SecurityConfig {
 
                 // Swagger endpoints: only accessible by ADMIN in production
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
+
+                // Media endpoints require authentication
+                .requestMatchers("/api/media/**").authenticated()
 
                 // All other endpoints require authentication
                 .anyRequest().authenticated()

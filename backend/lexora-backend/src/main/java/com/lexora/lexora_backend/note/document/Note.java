@@ -1,6 +1,7 @@
 package com.lexora.lexora_backend.note.document;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -12,11 +13,11 @@ import lombok.Data;
 public class Note {
 
     @Id
-    private String id;          // Mongo uses String/ObjectId
+    private UUID id;          // UUID for consistency
 
-    private Long noteId;        // Reference to SQL note
-    private Long workspaceId;
-    private Long ownerId;
+    private UUID noteId;        // Reference to SQL note
+    private UUID workspaceId;
+    private UUID ownerId;
 
     private String title;
     private String content;

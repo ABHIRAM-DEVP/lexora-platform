@@ -1,5 +1,7 @@
 package com.lexora.lexora_backend.user.service;
 
+import java.util.UUID;
+
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +31,7 @@ public class UserService {
     /**
      * Fetch User entity by ID (long)
      */
-    public User getById(Long userId) {
+    public User getById(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() ->
                         new RuntimeException("User not found with id: " + userId)

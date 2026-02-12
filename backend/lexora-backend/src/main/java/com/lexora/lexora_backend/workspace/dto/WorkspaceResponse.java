@@ -1,7 +1,7 @@
 package com.lexora.lexora_backend.workspace.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import java.util.UUID;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,14 +10,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class WorkspaceResponse {
-
-    @NotBlank
+    private UUID id;    
     private String name;
-
-    @Size(max=255)
     private String description;
-
-    private String id;      // optional
-    private String ownerId; // optional
+    private UUID ownerId;
+    private boolean deleted;
 }
-

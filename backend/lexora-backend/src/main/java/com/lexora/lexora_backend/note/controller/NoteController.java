@@ -2,12 +2,21 @@ package com.lexora.lexora_backend.note.controller;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.lexora.lexora_backend.note.dto.CreateNoteRequest;
 import com.lexora.lexora_backend.note.entity.Note;
@@ -58,7 +67,7 @@ public ResponseEntity<?> createNote(
     // ---------- LIST ----------
     @GetMapping
     public ResponseEntity<List<Note>> getNotes(
-            @RequestParam(required = false) Long workspaceId,
+            @RequestParam(required = false) UUID workspaceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -70,7 +79,7 @@ public ResponseEntity<?> createNote(
 
     // ---------- GET ONE ----------
     @GetMapping("/{id}")
-    public ResponseEntity<Note> getNote(@PathVariable Long id) {
+    public ResponseEntity<Note> getNote(@PathVariable UUID id) {
         User user = getCurrentUser();
         return ResponseEntity.ok(noteService.getNoteById(user, id));
     }
@@ -78,7 +87,7 @@ public ResponseEntity<?> createNote(
     // ---------- UPDATE ----------
     @PutMapping("/{id}")
     public ResponseEntity<Note> updateNote(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestBody Map<String, String> body) {
 
         User user = getCurrentUser();
@@ -89,7 +98,7 @@ public ResponseEntity<?> createNote(
 
     // ---------- DELETE ----------
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteNote(@PathVariable Long id) {
+    public ResponseEntity<?> deleteNote(@PathVariable UUID id) {
         User user = getCurrentUser();
         noteService.deleteNote(user, id);
         return ResponseEntity.ok(Map.of("message", "Note deleted"));

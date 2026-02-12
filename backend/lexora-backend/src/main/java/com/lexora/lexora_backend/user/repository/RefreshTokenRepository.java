@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.lexora.lexora_backend.user.entity.RefreshToken;
 import com.lexora.lexora_backend.user.entity.User;
 
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
     Optional<RefreshToken> findByToken(String token);
 

@@ -1,5 +1,7 @@
 package com.lexora.lexora_backend.note.dto;
 
+import java.util.UUID;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -13,6 +15,6 @@ public class CreateNoteRequest {
     private String content;
 
     @NotNull
-    private Long workspaceId;
+    private UUID workspaceId;
 }
 

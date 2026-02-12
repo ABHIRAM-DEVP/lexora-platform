@@ -3,7 +3,6 @@ package com.lexora.lexora_backend.auth.service;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,91 +27,76 @@ import lombok.RequiredArgsConstructor;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-
-    
-    
-    //register
+    // REGISTER
     public void registerUser(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already in use");
         }
 
         User user = new User();
-         user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
         user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.USER); // ✅ works
+        user.setRole(Role.USER);
+
         userRepository.save(user);
     }
 
-
-    //login
+    // LOGIN
     public LoginResponse login(LoginRequest request) {
-    User user = userRepository.findByUsername(request.getUsername())
-        .orElseThrow(() -> new RuntimeException("User not found"));
 
-    if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-        throw new RuntimeException("Invalid password");
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Invalid password");
+        }
+
+        String accessToken = jwtUtil.generateToken(user);
+        String refreshToken = UUID.randomUUID().toString();
+
+        RefreshToken token = new RefreshToken();
+        token.setUser(user);
+        token.setToken(refreshToken);
+        token.setExpiryDate(Instant.now().plusSeconds(7 * 24 * 60 * 60));
+
+        refreshTokenRepository.save(token);
+
+        return new LoginResponse(accessToken, refreshToken, "Login successful");
     }
 
-    // Generate access token (JWT)
-    String accessToken = jwtUtil.generateToken(user);
-
-    // Generate refresh token (random UUID or JWT)
-    String refreshToken = UUID.randomUUID().toString();
-
-    // Save refresh token in DB
-    RefreshToken tokenEntity = new RefreshToken();
-    tokenEntity.setUser(user);
-    tokenEntity.setToken(refreshToken);
-    tokenEntity.setExpiryDate(Instant.now().plusSeconds(60*60*24*7)); // 7 days
-    refreshTokenRepository.save(tokenEntity);
-
-    return new LoginResponse(accessToken, refreshToken, "User logged in successfully 🏛️");
-}
-
-
-    //refresh token
+    // REFRESH TOKEN
     public LoginResponse refreshAccessToken(String refreshToken) {
-    RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
-            .orElseThrow(() -> new RuntimeException("Refresh token not found"));
 
-    // Check if expired
-    if (tokenEntity.getExpiryDate().isBefore(Instant.now())) {
-        refreshTokenRepository.delete(tokenEntity); // clean up expired token
-        throw new RuntimeException("Refresh token expired, please login again");
+        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+
+        if (token.getExpiryDate().isBefore(Instant.now())) {
+            refreshTokenRepository.delete(token);
+            throw new RuntimeException("Refresh token expired");
+        }
+
+        User user = token.getUser();
+
+        String newAccessToken = jwtUtil.generateToken(user);
+        String newRefreshToken = UUID.randomUUID().toString();
+
+        token.setToken(newRefreshToken);
+        token.setExpiryDate(Instant.now().plusSeconds(7 * 24 * 60 * 60));
+        refreshTokenRepository.save(token);
+
+        return new LoginResponse(newAccessToken, newRefreshToken, "Token refreshed");
     }
 
-    User user = tokenEntity.getUser();
-    if (user == null) {
-        throw new RuntimeException("User not found");
+    // LOGOUT
+    @Transactional
+    public void logout(User user) {
+        refreshTokenRepository.deleteByUser(user);
     }
-
-    // Generate new access token
-    String newAccessToken = jwtUtil.generateToken(user);
-
-    // Optional: rotate refresh token (more secure)
-    String newRefreshToken = UUID.randomUUID().toString();
-    tokenEntity.setToken(newRefreshToken);
-    tokenEntity.setExpiryDate(Instant.now().plusSeconds(60*60*24*7)); // 7 days
-    refreshTokenRepository.save(tokenEntity);
-
-    return new LoginResponse(newAccessToken, newRefreshToken, "Token refreshed successfully 🔄");
-}
-
-//logout
-@Transactional
-public void logout(User user) {
-    refreshTokenRepository.deleteByUser(user);
-}
-
-
     //promote to admin
     public void promoteToAdmin(String email){
         User user = userRepository.findByEmail(email)
@@ -138,9 +122,27 @@ public void logout(User user) {
 
     // AuthService.java
     public User getCurrentUser() {
-        String username = getCurrentUserId(); // JWT subject
-        return userRepository.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("No authenticated user found");
+        }
+
+        String userIdStr = authentication.getName(); // Assuming userId is stored as subject
+        if (userIdStr == null || userIdStr.isBlank()) {
+            throw new RuntimeException("JWT does not contain user ID");
+        }
+
+        UUID userId;
+        try {
+            userId = UUID.fromString(userIdStr);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid user ID in JWT");
+        }
+
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
     }
 
 

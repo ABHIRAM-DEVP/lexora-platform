@@ -2,6 +2,7 @@ package com.lexora.lexora_backend.note.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,7 @@ public class NoteService {
     private final WorkspaceRepository workspaceRepository;
 
     // CREATE
-    public Note createNote(User user, String title, String content, Long workspaceId) {
+    public Note createNote(User user, String title, String content, UUID workspaceId) {
 
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
@@ -44,7 +45,7 @@ public class NoteService {
     }
 
     // LIST
-    public List<Note> getNotes(User user, Long workspaceId, int page, int size) {
+    public List<Note> getNotes(User user, UUID workspaceId, int page, int size) {
         PageRequest pageable = PageRequest.of(page, size);
 
         if (workspaceId != null) {
@@ -62,7 +63,7 @@ public class NoteService {
     }
 
     // GET ONE
-    public Note getNoteById(User user, Long noteId) {
+    public Note getNoteById(User user, UUID noteId) {
         Note note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Note not found"));
 
@@ -78,7 +79,7 @@ public class NoteService {
     }
 
     // UPDATE
-    public Note updateNote(User user, Long noteId, String title, String content) {
+    public Note updateNote(User user, UUID noteId, String title, String content) {
         Note note = getNoteById(user, noteId);
         note.setTitle(title);
         note.setContent(content);
@@ -87,7 +88,7 @@ public class NoteService {
     }
 
     // DELETE (SOFT)
-    public void deleteNote(User user, Long noteId) {
+    public void deleteNote(User user, UUID noteId) {
         Note note = getNoteById(user, noteId);
         note.setDeleted(true);
         note.setDeletedAt(Instant.now());

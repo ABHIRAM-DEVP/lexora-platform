@@ -1,0 +1,24 @@
+package com.lexora.lexora_backend.workspace.repository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+import com.lexora.lexora_backend.workspace.document.WorkspaceMember;
+import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
+
+public interface WorkspaceMemberRepository
+        extends MongoRepository<WorkspaceMember, String> {
+
+    Optional<WorkspaceMember> findByWorkspaceIdAndUserId(
+            UUID workspaceId,
+            UUID userId
+    );
+
+    boolean existsByWorkspaceIdAndUserIdAndRole(
+            UUID workspaceId,
+            UUID userId,
+            WorkspaceRole role
+    );
+}

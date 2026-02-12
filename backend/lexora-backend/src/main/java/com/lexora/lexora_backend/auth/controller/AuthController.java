@@ -2,10 +2,12 @@
 package com.lexora.lexora_backend.auth.controller;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +19,7 @@ import com.lexora.lexora_backend.auth.dto.LogoutRequest;
 import com.lexora.lexora_backend.auth.dto.RefreshTokenRequest;
 import com.lexora.lexora_backend.auth.dto.SignupRequest;
 import com.lexora.lexora_backend.auth.service.AuthService;
+import com.lexora.lexora_backend.common.util.SecurityUtils;
 import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.user.repository.UserRepository;
 
@@ -84,6 +87,11 @@ public ResponseEntity<?> refresh(@RequestBody RefreshTokenRequest request) {
     }
 
 
+@GetMapping("/me")
+public ResponseEntity<?> getCurrentUser() {
+    UUID userId = SecurityUtils.getCurrentUserId();
+    return ResponseEntity.ok(Map.of("userId", userId));
+}
 
 
     
