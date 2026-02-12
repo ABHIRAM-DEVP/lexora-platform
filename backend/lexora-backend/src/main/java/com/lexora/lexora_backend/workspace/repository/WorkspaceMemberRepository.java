@@ -21,4 +21,6 @@ public interface WorkspaceMemberRepository
             UUID userId,
             WorkspaceRole role
     );
+
+    public void deleteByWorkspaceIdAndUserId(UUID workspaceId, UUID memberId);
 }

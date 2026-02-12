@@ -12,6 +12,7 @@ import com.lexora.lexora_backend.common.exception.ResourceNotFoundException;
 import com.lexora.lexora_backend.user.entity.Role;
 import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
+import com.lexora.lexora_backend.workspace.repository.WorkspaceMemberRepository;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
+
 
     /* ============================================================
        CREATE WORKSPACE
@@ -227,4 +230,14 @@ public class WorkspaceService {
                     "Only OWNER can perform this action.");
         }
     }
+    public void removeMember(UUID workspaceId, UUID memberId, UUID currentUserId) {
+
+    String role = getUserRole(workspaceId, currentUserId);
+
+    if (!role.equalsIgnoreCase("OWNER")) {
+        throw new AccessDeniedException("Only OWNER can remove members");
+    }
+
+    workspaceMemberRepository.deleteByWorkspaceIdAndUserId(workspaceId, memberId);
+}
 }

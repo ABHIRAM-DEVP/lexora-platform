@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
@@ -142,40 +143,25 @@ public ResponseEntity<?> listFiles(
 
     // ⬇ Download file
     @GetMapping("/{fileId}")
-public ResponseEntity<Resource> downloadFile(@PathVariable String fileId) {
+public ResponseEntity<?> downloadFile(@PathVariable String fileId) {
     try {
         UUID userId = authService.getCurrentUser().getId();
+
         MediaFile mediaFile = mediaService.getFile(fileId, userId);
-
-        // Ensure the file exists on disk
-        Path path = Paths.get(mediaFile.getStoragePath());
-        if (!Files.exists(path) || !Files.isReadable(path)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(null); // file not found
-        }
-
-         // ✅ Fixed null-safety warning by using Objects.requireNonNull
-            URI fileUri = java.util.Objects.requireNonNull(path.toUri()); 
-            Resource resource = new UrlResource(fileUri);
-
-        // Detect content type
-        String contentType = mediaFile.getFileType();
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
+        InputStreamResource resource = mediaService.downloadFile(fileId, userId);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
+                .contentType(MediaType.parseMediaType(mediaFile.getFileType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + mediaFile.getFileName() + "\"")
                 .body(resource);
 
-    } catch (MediaNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-    } catch (MalformedURLException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", e.getMessage()));
     }
 }
+
 
     // ✅ Map MediaFile to DTO
 //     private MediaFileResponse mapToResponse(MediaFile media) {

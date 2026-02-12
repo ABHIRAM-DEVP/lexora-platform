@@ -250,6 +250,18 @@ public ResponseEntity<?> getWorkspaceMembers(@PathVariable UUID workspaceId) {
     }
 }
 
+@DeleteMapping("/{workspaceId}/members/{userId}")
+public ResponseEntity<?> removeMember(
+        @PathVariable UUID workspaceId,
+        @PathVariable UUID userId) {
+
+    UUID currentUserId = authService.getCurrentUser().getId();
+
+    workspaceService.removeMember(workspaceId, userId, currentUserId);
+
+    return ResponseEntity.ok(Map.of("message", "Member removed successfully"));
+}
+
 
 
 }

@@ -2,12 +2,14 @@
 package com.lexora.lexora_backend.media.service;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +21,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Criteria;
 
 import com.lexora.lexora_backend.auth.service.AuthService;
+import com.lexora.lexora_backend.common.exception.AccessDeniedException;
 import com.lexora.lexora_backend.common.exception.FileSizeExceededException;
 import com.lexora.lexora_backend.common.exception.InvalidFileTypeException;
 import com.lexora.lexora_backend.common.exception.MediaNotFoundException;
@@ -26,7 +29,11 @@ import com.lexora.lexora_backend.media.document.MediaFile;
 import com.lexora.lexora_backend.media.dto.UploadFileRequest;
 import com.lexora.lexora_backend.media.repository.MediaRepository;
 import com.lexora.lexora_backend.workspace.service.WorkspaceService;
+
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.apache.tika.Tika;
+
+import com.lexora.lexora_backend.workspace.repository.WorkspaceMemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +46,7 @@ public class MediaService {
     private final AuthService authService;
     private final MongoTemplate mongoTemplate;
 
+
     @Value("${storage.localPath}")
     private String storagePath;
 
@@ -49,6 +57,13 @@ public class MediaService {
      */
     public MediaFile uploadFile(MultipartFile file, UploadFileRequest request, UUID userId)
             throws IOException {
+
+            Tika tika = new Tika();
+String detectedType = tika.detect(file.getInputStream());
+
+if (!(detectedType.startsWith("image/") || detectedType.equals("application/pdf"))) {
+    throw new InvalidFileTypeException("Invalid file content type");
+}
 
         // ✅ Validate file
         if (file == null || file.isEmpty())
@@ -63,8 +78,8 @@ public class MediaService {
         if (file.getSize() > MAX_SIZE)
             throw new FileSizeExceededException("File exceeds 10MB");
 
-        // ✅ Validate workspace access
-        validateWorkspace(request.getWorkspaceId(), userId);
+        validateRole(request.getWorkspaceId(), userId, "OWNER", "ADMIN", "MEMBER");
+
 
         // ✅ Prepare storage directories
         File rootDir = new File(storagePath);
@@ -149,6 +164,8 @@ public class MediaService {
      */
     public void deleteFile(String fileId, UUID userId) {
         MediaFile file = getFile(fileId, userId);
+validateRole(file.getWorkspaceId(), userId, "OWNER", "ADMIN");
+
         file.setDeleted(true);
         mediaRepository.save(file);
     }
@@ -157,6 +174,7 @@ public class MediaService {
      * Restore a soft-deleted file
      */
     public void restoreFile(String fileId, UUID userId) {
+        
         MediaFile file = mediaRepository
                 .findByIdAndOwnerId(fileId, userId)
                 .orElseThrow(() -> new MediaNotFoundException("File not found"));
@@ -188,11 +206,48 @@ public class MediaService {
      * Permanently delete a file from disk and DB
      */
     public void permanentDelete(MediaFile file) {
-        // Delete from disk
+        // Delete from disk 
         File f = new File(file.getStoragePath());
         if (f.exists()) f.delete();
 
         // Delete from DB
         mediaRepository.delete(file);
     }
+
+    public InputStreamResource downloadFile(String fileId, UUID userId) throws IOException {
+
+    MediaFile mediaFile = getFile(fileId, userId);
+
+    if (mediaFile.isDeleted()) {
+        throw new MediaNotFoundException("File is deleted");
+    }
+
+    File file = new File(mediaFile.getStoragePath());
+
+    if (!file.exists()) {
+        throw new MediaNotFoundException("File not found on disk");
+    }
+
+    return new InputStreamResource(new FileInputStream(file));
+}
+
+private void validateRole(UUID workspaceId, UUID userId, String... allowedRoles) {
+
+    String role = workspaceService.getUserRole(workspaceId, userId);
+
+    for (String allowed : allowedRoles) {
+        if (allowed.equalsIgnoreCase(role)) {
+            return;
+        }
+    }
+
+    throw new AccessDeniedException("Insufficient permissions. Your role: " + role);
+}
+
+
+
+
+
+
+
 }

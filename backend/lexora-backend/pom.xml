@@ -12,6 +12,7 @@
         <version>3.2.3</version>
         <relativePath/>
     </parent>
+    
 
     <groupId>com.lexora</groupId>
     <artifactId>lexora-backend</artifactId>
@@ -73,6 +74,19 @@
             <scope>provided</scope>
         </dependency>
 
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.1</version>
+        </dependency>
+
+
+
+
+
+
+
         <!-- Spring Boot Test Starter (all-in-one for testing) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -121,6 +135,7 @@
 
         
 
+        
 
 
 
@@ -151,5 +166,6 @@
             </plugin>
         </plugins>
     </build>
+
 
 </project>
