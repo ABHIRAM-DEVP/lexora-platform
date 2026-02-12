@@ -24,195 +24,207 @@ public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
 
-    /**
-     * Create a new workspace for a user
-     * @param user owner of the workspace
-     * @param name workspace name (non-null, non-blank)
-     * @param description optional workspace description
-     * @return saved Workspace
-     */
-    // public Workspace createWorkspace(User user, String name, String description) {
-    //     if (name == null || name.isBlank()) {
-    //         log.warn("Attempted to create workspace with empty name by user: {}", user.getId());
-    //         throw new IllegalArgumentException("Workspace name cannot be empty");
-    //     }
+    /* ============================================================
+       CREATE WORKSPACE
+       ============================================================ */
+    public Workspace createWorkspace(User owner, String name, String description) {
 
-    //     Workspace workspace = new Workspace();
-    //     workspace.setName(name);
-    //     workspace.setDescription(description);
-    //     workspace.setOwner(user);
-
-    //     Workspace savedWorkspace = workspaceRepository.save(workspace);
-    //     log.info("Workspace created: {} by user {}", savedWorkspace.getId(), user.getId());
-
-    //     return savedWorkspace;
-    // }
-
-    /**
-     * Get all workspaces for a user
-     * @param user owner
-     * @return list of active workspaces (ADMIN: all active)
-     */
-    public List<Workspace> getWorkspacesForUser(User user) {
-        List<Workspace> workspaces;
-
-        if (user.getRole() == Role.ADMIN) {
-            workspaces = workspaceRepository.findByDeletedFalse();
-            log.info("ADMIN user {} fetched all active workspaces: {}", user.getId(), workspaces.size());
-        } else {
-            workspaces = workspaceRepository.findByOwnerAndDeletedFalse(user);
-            log.info("USER {} fetched {} active workspaces", user.getId(), workspaces.size());
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Workspace name cannot be empty");
         }
 
-        return workspaces;
+        Workspace ws = new Workspace();
+        ws.setName(name);
+        ws.setDescription(description);
+        ws.setOwner(owner);
+        ws.setDeleted(false);
+
+        // Initialize members map
+        Map<UUID, String> members = new HashMap<>();
+        members.put(owner.getId(), "OWNER");
+        ws.setMembers(members);
+
+        Workspace saved = workspaceRepository.save(ws);
+
+        log.info("Workspace {} created by user {}", saved.getId(), owner.getId());
+        return saved;
     }
 
-    /**
-     * Get workspace by UUID, verifying ownership or ADMIN access
-     * @param user owner
-     * @param workspaceId UUID of workspace
-     * @return workspace
-     */
-    public Workspace getWorkspaceById(User user, UUID workspaceId) {
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace not found: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace not found");
-                });
+    /* ============================================================
+       GET ACTIVE WORKSPACES
+       ============================================================ */
+    public List<Workspace> getWorkspacesForUser(User user) {
 
-        if (!workspace.getOwner().getId().equals(user.getId()) && user.getRole() != Role.ADMIN) {
-            log.warn("Access denied for user {} to workspace {}", user.getId(), workspaceId);
-            throw new SecurityException("Access denied to this workspace");
+        if (user.getRole() == Role.ADMIN) {
+            return workspaceRepository.findByDeletedFalse();
         }
 
-        log.info("Workspace {} accessed by user {}", workspaceId, user.getId());
+        return workspaceRepository.findByOwnerAndDeletedFalse(user);
+    }
+
+    /* ============================================================
+       GET WORKSPACE BY ID
+       ============================================================ */
+    public Workspace getWorkspaceById(User user, UUID workspaceId) {
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
+
+        // Global ADMIN can access everything
+        if (user.getRole() == Role.ADMIN) {
+            return workspace;
+        }
+
+        Map<UUID, String> members = workspace.getMembers();
+
+        if (members == null || !members.containsKey(user.getId())) {
+            throw new AccessDeniedException("Access denied to this workspace");
+        }
+
         return workspace;
     }
 
-    /**
-     * Soft delete workspace
-     */
+    /* ============================================================
+       SOFT DELETE (OWNER or ADMIN)
+       ============================================================ */
     public void softDeleteWorkspace(User user, UUID workspaceId) {
-        Workspace workspace = getWorkspaceById(user, workspaceId);
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
+
+        validateOwnerOrAdmin(workspace, user.getId());
 
         if (workspace.isDeleted()) {
-            log.warn("Workspace {} already deleted, user {}", workspaceId, user.getId());
             throw new IllegalStateException("Workspace already deleted");
         }
 
         workspace.setDeleted(true);
         workspaceRepository.save(workspace);
+
         log.info("Workspace {} soft deleted by user {}", workspaceId, user.getId());
     }
 
-    /**
-     * Restore deleted workspace
-     */
+    /* ============================================================
+       RESTORE WORKSPACE (OWNER ONLY)
+       ============================================================ */
     public void restoreWorkspace(User user, UUID workspaceId) {
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace not found for restore: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace not found");
-                });
 
-        if (!workspace.getOwner().getId().equals(user.getId()) && user.getRole() != Role.ADMIN) {
-            log.warn("Access denied for user {} to restore workspace {}", user.getId(), workspaceId);
-            throw new SecurityException("Access denied to restore this workspace");
-        }
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
+
+        validateOwner(workspace, user.getId());
 
         if (!workspace.isDeleted()) {
-            log.warn("Workspace {} is not deleted, cannot restore", workspaceId);
             throw new IllegalStateException("Workspace is not deleted");
         }
 
         workspace.setDeleted(false);
         workspaceRepository.save(workspace);
+
         log.info("Workspace {} restored by user {}", workspaceId, user.getId());
     }
 
-    /**
-     * List deleted workspaces
-     */
+    /* ============================================================
+       LIST DELETED WORKSPACES
+       ============================================================ */
     public List<Workspace> getDeletedWorkspaces(User user) {
-        List<Workspace> deleted;
 
         if (user.getRole() == Role.ADMIN) {
-            deleted = workspaceRepository.findByDeletedTrue();
-            log.info("ADMIN {} fetched all deleted workspaces: {}", user.getId(), deleted.size());
-        } else {
-            deleted = workspaceRepository.findByOwnerAndDeletedTrue(user);
-            log.info("USER {} fetched {} deleted workspaces", user.getId(), deleted.size());
+            return workspaceRepository.findByDeletedTrue();
         }
 
-        return deleted;
+        return workspaceRepository.findByOwnerAndDeletedTrue(user);
     }
 
-    public void addMember(UUID workspaceId, UUID currentUserId, UUID userIdToAdd, String role) {
+    /* ============================================================
+       ADD MEMBER (OWNER or ADMIN)
+       ============================================================ */
+    public void addMember(UUID workspaceId,
+                          UUID currentUserId,
+                          UUID userIdToAdd,
+                          String role) {
 
-    // 1️⃣ Fetch workspace
-    Workspace workspace = workspaceRepository.findById(workspaceId)
-            .orElseThrow(() -> new ResourceNotFoundException(
-                    "Workspace not found. Please check the workspaceId: " + workspaceId));
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
 
-    // 2️⃣ Check currentUserId role — must be OWNER or ADMIN
-    Map<UUID, String> members = workspace.getMembers();
-    if (members == null || members.isEmpty()) {
-        throw new AccessDeniedException(
-                "Workspace has no members. Only OWNER or ADMIN can add new members.");
+        validateOwnerOrAdmin(workspace, currentUserId);
+
+        Map<UUID, String> members = workspace.getMembers();
+
+        if (members.containsKey(userIdToAdd)) {
+            throw new IllegalArgumentException(
+                    "User is already a member of this workspace.");
+        }
+
+        members.put(userIdToAdd, role.toUpperCase());
+        workspaceRepository.save(workspace);
+
+        log.info("User {} added to workspace {} as {}",
+                userIdToAdd, workspaceId, role);
     }
 
-    String currentUserRole = members.get(currentUserId);
-    if (currentUserRole == null) {
-        throw new AccessDeniedException(
-                "You are not a member of this workspace. Access denied.");
+    /* ============================================================
+       GET WORKSPACE MEMBERS (OWNER or ADMIN)
+       ============================================================ */
+    public Map<UUID, String> getWorkspaceMembers(UUID workspaceId,
+                                                 UUID requesterId) {
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
+
+        validateOwnerOrAdmin(workspace, requesterId);
+
+        return new HashMap<>(workspace.getMembers());
     }
 
-    if (!currentUserRole.equalsIgnoreCase("OWNER") && !currentUserRole.equalsIgnoreCase("ADMIN")) {
-        throw new AccessDeniedException(
-                "Only users with role OWNER or ADMIN can add new members. Your role: " + currentUserRole);
+    /* ============================================================
+       GET USER ROLE INSIDE WORKSPACE
+       ============================================================ */
+    public String getUserRole(UUID workspaceId, UUID userId) {
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workspace not found"));
+
+        Map<UUID, String> members = workspace.getMembers();
+
+        if (members == null || !members.containsKey(userId)) {
+            throw new AccessDeniedException(
+                    "You are not a member of this workspace.");
+        }
+
+        return members.get(userId);
     }
 
-    // 3️⃣ Prevent adding duplicates
-    if (members.containsKey(userIdToAdd)) {
-        throw new IllegalArgumentException(
-                "User with ID " + userIdToAdd + " is already a member of this workspace.");
+    /* ============================================================
+       ROLE VALIDATION HELPERS
+       ============================================================ */
+
+    private void validateOwnerOrAdmin(Workspace workspace, UUID userId) {
+
+        String role = workspace.getMembers().get(userId);
+
+        if (role == null ||
+                (!role.equalsIgnoreCase("OWNER") &&
+                 !role.equalsIgnoreCase("ADMIN"))) {
+
+            throw new AccessDeniedException(
+                    "Only OWNER or ADMIN can perform this action.");
+        }
     }
 
-    // 4️⃣ Add new member
-    members.put(userIdToAdd, role.toUpperCase());
-    workspaceRepository.save(workspace);
-}
+    private void validateOwner(Workspace workspace, UUID userId) {
 
-public Workspace createWorkspace(User owner, String name, String description) {
+        String role = workspace.getMembers().get(userId);
 
-    Workspace ws = new Workspace();
-    ws.setName(name);
-    ws.setDescription(description);
-    ws.setOwner(owner);
-    ws.setDeleted(false);
-
-    // 🔹 Initialize members map
-    Map<UUID, String> members = new HashMap<>();
-    members.put(owner.getId(), "OWNER"); // Owner is automatically OWNER
-    ws.setMembers(members);
-
-    return workspaceRepository.save(ws);
-}
-
-public Map<UUID, String> getWorkspaceMembers(UUID workspaceId, UUID requesterId) {
-    // 1️⃣ Fetch workspace
-    Workspace workspace = workspaceRepository.findById(workspaceId)
-            .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
-
-    // 2️⃣ Check if requester has permission
-    String requesterRole = workspace.getMembers().get(requesterId);
-    if (requesterRole == null || 
-        (!requesterRole.equals("OWNER") && !requesterRole.equals("ADMIN"))) {
-        throw new AccessDeniedException("Only OWNER or ADMIN can view workspace members");
+        if (role == null || !role.equalsIgnoreCase("OWNER")) {
+            throw new AccessDeniedException(
+                    "Only OWNER can perform this action.");
+        }
     }
-
-    // 3️⃣ Return a copy of members map
-    return new HashMap<>(workspace.getMembers());
-}
-
 }

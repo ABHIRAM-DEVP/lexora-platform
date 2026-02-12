@@ -108,13 +108,23 @@ public class WorkspaceController {
     public ResponseEntity<?> deleteWorkspace(@PathVariable UUID id) {
         try {
             User user = authService.getCurrentUser();
-            workspaceService.softDeleteWorkspace(user, id);
+
+            String role = workspaceService.getUserRole(id, user.getId());
+        if (!"OWNER".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+    throw new AccessDeniedException("Only OWNER or ADMIN can delete workspace.");
+}
+
+
+        workspaceService.softDeleteWorkspace(user, id);
+
+            
 
             log.info("Workspace {} soft deleted by user {}", id, user.getId());
             return ResponseEntity.ok(Map.of(
                     "message", "Workspace deleted successfully",
                     "workspaceId", id
             ));
+            
         } catch (Exception e) {
             log.error("Error deleting workspace {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
@@ -128,7 +138,14 @@ public class WorkspaceController {
     public ResponseEntity<?> restoreWorkspace(@PathVariable UUID id) {
         try {
             User user = authService.getCurrentUser();
+
+            String role = workspaceService.getUserRole(id, user.getId());
+            if (!"OWNER".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+                throw new AccessDeniedException("Only OWNER can restore workspace.");
+            }
+
             workspaceService.restoreWorkspace(user, id);
+
 
             log.info("Workspace {} restored by user {}", id, user.getId());
             return ResponseEntity.ok(Map.of(
@@ -232,4 +249,7 @@ public ResponseEntity<?> getWorkspaceMembers(@PathVariable UUID workspaceId) {
                 .body(Map.of("error", e.getMessage()));
     }
 }
+
+
+
 }
