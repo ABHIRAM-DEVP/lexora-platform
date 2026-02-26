@@ -1,10 +1,7 @@
 spring:
 
-  cache:
-      type: redis
-      
   datasource:
-    url: ${POSTGRES_URL}
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -13,43 +10,57 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   data:
     mongodb:
-      uri: ${MONGO_URI}
-      database: ${MONGO_INITDB_DATABASE}
+      uri: ${MONGO_URI:mongodb://localhost:27017/lexora}
+      database: ${MONGO_INITDB_DATABASE:lexora}
 
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       time-to-live: 600000
-      
 
+  cache:
+    type: redis
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: lexora-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    admin:
+      client-id: lexora-admin
+      auto-create: true
 
   servlet:
     multipart:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
-  
+
   jackson:
     serialization:
       write-dates-as-timestamps: false
 
-  
-
-
-jwt:  
-  secret: ${JWT_SECRET}
-  expiration-ms: ${JWT_EXPIRATION_MS}
+jwt:
+  secret: ${JWT_SECRET:default-secret-key-for-development-only-change-in-production}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 storage:
-  localPath: C:/lexora/uploads
+  localPath: /app/uploads
 
 logging:
   level:
-    "[org.springframework.data.mongodb.core.MongoTemplate]": DEBUG
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
 
 management:
   endpoints:
@@ -59,27 +70,3 @@ management:
   metrics:
     enable:
       all: true
-
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-      - org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration
-      - org.springframework.boot.autoconfigure.mongo.MongoHealthContributorAutoConfiguration
-      
-  data:
-    mongodb:
-      database: ${MONGO_TEST_DATABASE}
-      uri: ${MONGO_TEST_URI}
-
-jwt:  
-  secret: test-jwt-secret
-  expiration-ms: 3600000
-
-    
-

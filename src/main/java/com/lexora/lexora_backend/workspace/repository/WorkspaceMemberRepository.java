@@ -26,4 +26,6 @@ public interface WorkspaceMemberRepository
     public void deleteByWorkspaceIdAndUserId(UUID workspaceId, UUID memberId);
 
     public List<WorkspaceMember> findAllByWorkspaceId(UUID workspaceId);
+
+    public boolean existsByWorkspaceIdAndUserId(UUID workspaceId, UUID userId);
 }

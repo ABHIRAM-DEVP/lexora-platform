@@ -1,6 +1,5 @@
 package com.lexora.lexora_backend.workspace.service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -11,16 +10,18 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import com.lexora.lexora_backend.auth.service.AuthService;
+import com.lexora.lexora_backend.common.events.DomainEventPublisher;
 import com.lexora.lexora_backend.common.exception.AccessDeniedException;
 import com.lexora.lexora_backend.common.exception.ForbiddenException;
 import com.lexora.lexora_backend.common.exception.ResourceNotFoundException;
 import com.lexora.lexora_backend.user.entity.Role;
 import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.user.repository.UserRepository;
+import com.lexora.lexora_backend.workspace.document.WorkspaceMember;
 import com.lexora.lexora_backend.workspace.dto.WorkspaceResponse;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
-import com.lexora.lexora_backend.workspace.document.WorkspaceMember;
 import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
+import com.lexora.lexora_backend.workspace.events.MemberAddedEvent;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceMemberRepository;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceRepository;
 
@@ -298,17 +299,56 @@ public Map<UUID, String> getWorkspaceMembers(UUID workspaceId, UUID requesterId)
             ));
 }
 
+// public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
+
+//     Workspace workspace = workspaceRepository.findById(workspaceId)
+//             .orElseThrow(() ->
+//                     new ResourceNotFoundException("Workspace not found"));
+
+//     if (!workspace.getOwner().getId().equals(userId)) {
+//         throw new ForbiddenException("You do not have access to this workspace");
+//     }
+
+//     return workspace;
+// }
+
 public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
 
     Workspace workspace = workspaceRepository.findById(workspaceId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Workspace not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    if (!workspace.getOwner().getId().equals(userId)) {
-        throw new ForbiddenException("You do not have access to this workspace");
-    }
+    workspaceMemberRepository
+            .findByWorkspaceIdAndUserId(workspaceId, userId)
+            .orElseThrow(() ->
+                    new ForbiddenException("You do not have access to this workspace"));
 
     return workspace;
 }
 
+
+    private final DomainEventPublisher eventPublisher;
+
+    public void addMember(UUID workspaceId,
+                          UUID userIdToAdd,
+                          String role,
+                          UUID currentUserId) {
+
+        WorkspaceMember member = new WorkspaceMember();
+        member.setWorkspaceId(workspaceId);
+        member.setUserId(userIdToAdd);
+        member.setRole(WorkspaceRole.valueOf(role));
+
+        workspaceMemberRepository.save(member);
+
+        // 🔥 EVENT PUBLISHING HOOK
+        eventPublisher.publish(
+                "workspace.member.added",
+                new MemberAddedEvent(
+                        workspaceId,
+                        currentUserId,
+                        userIdToAdd,
+                        role
+                )
+        );
+    }
 }
