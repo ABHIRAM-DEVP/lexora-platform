@@ -12,9 +12,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Document(collection = "activity_logs")
 public class ActivityLog {
 
@@ -27,4 +27,5 @@ public class ActivityLog {
     private String entityType;
     private UUID entityId;
     private Instant timestamp;
+   
 }

@@ -29,4 +29,6 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
     List<Workspace> findByDeletedFalse();
 
 Optional<Workspace> findByIdAndOwner_Id(UUID id, UUID ownerId);
+
+
 }

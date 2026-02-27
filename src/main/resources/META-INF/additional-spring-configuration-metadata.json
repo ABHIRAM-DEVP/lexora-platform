@@ -23,5 +23,10 @@
     "name": "spring.kafka.consumer.producer.key-serializer",
     "type": "java.lang.String",
     "description": "A description for 'spring.kafka.consumer.producer.key-serializer'"
+  },
+  {
+    "name": "management.elasticsearch.uris",
+    "type": "java.lang.String",
+    "description": "A description for 'management.elasticsearch.uris'"
   }
 ]}

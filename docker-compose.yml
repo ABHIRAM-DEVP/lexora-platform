@@ -1,5 +1,6 @@
-services:
+version: '3.9'
 
+services:
   app:
     build: .
     container_name: lexora-app
@@ -8,20 +9,24 @@ services:
     env_file:
       - .env
     environment:
-      url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      MONGO_URI: mongodb://mongo:27017/lexora
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/lexora
+
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
     depends_on:
-      postgres:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-      redis:
-        condition: service_started
-      kafka:
-        condition: service_started
+      - postgres
+      - mongo
+      - redis
+      - kafka
+      - elasticsearch
     restart: always
     networks:
       - lexora-network
@@ -30,7 +35,6 @@ services:
     image: postgres:16
     container_name: lexora-postgres
     environment:
-      url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -54,6 +58,24 @@ services:
     networks:
       - lexora-network
 
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: lexora-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: always
+    networks:
+      - lexora-network
+
   redis:
     image: redis:7
     container_name: lexora-redis
@@ -73,6 +95,12 @@ services:
     restart: always
     networks:
       - lexora-network
+    # Disable healthcheck for now to avoid dependency issues
+    # healthcheck:
+    #   test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 10
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -83,6 +111,7 @@ services:
       - "9092:9092"
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092

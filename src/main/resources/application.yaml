@@ -60,7 +60,7 @@ storage:
 
 logging:
   level:
-    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+    "[org.springframework.data.mongodb.core.MongoTemplate]": DEBUG
 
 management:
   endpoints:
@@ -70,3 +70,5 @@ management:
   metrics:
     enable:
       all: true
+  elasticsearch:
+    uris: http://elasticsearch:9200

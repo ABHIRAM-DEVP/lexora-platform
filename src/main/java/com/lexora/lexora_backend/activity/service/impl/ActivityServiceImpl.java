@@ -18,31 +18,27 @@ public class ActivityServiceImpl implements ActivityService {
 
     private final ActivityLogRepository activityLogRepository;
 
-    public void logActivity(UUID userId, String action, String description) {
-        ActivityLog log = new ActivityLog();
-        log.setUserId(userId);
-        log.setAction(action);
-        log.setTimestamp(Instant.now());
+    @Override
+public void log(UUID userId, String action, UUID entityId) {
 
-        activityLogRepository.save(log);
-    }
+    ActivityLog log = ActivityLog.builder()
+            .id(UUID.randomUUID())      // UUID assigned here
+            .userId(userId)
+            .action(action)
+            .entityId(entityId)
+            .timestamp(Instant.now())
+            .build();
 
-    public List<ActivityLog> getAllActivity() {
-        return activityLogRepository.findAll();
-    }
-
-    
-    public List<ActivityLog> getActivityByUser(UUID userId) {
-        return activityLogRepository.findByUserId(userId);
-    }
+    activityLogRepository.save(log);
+}
 
     @Override
     public List<ActivityLog> getAllActivities() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return activityLogRepository.findAll();
     }
 
     @Override
     public List<ActivityLog> getActivitiesByUser(UUID userId) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return activityLogRepository.findByUserId(userId);
     }
 }

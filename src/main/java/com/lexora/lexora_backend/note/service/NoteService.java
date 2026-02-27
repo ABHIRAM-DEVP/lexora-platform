@@ -14,9 +14,7 @@ import org.springframework.stereotype.Service;
 
 import com.lexora.lexora_backend.common.constants.CacheKeys;
 import com.lexora.lexora_backend.common.dto.PagedResponse;
-import com.lexora.lexora_backend.common.exception.ForbiddenException;
 import com.lexora.lexora_backend.common.exception.ResourceNotFoundException;
-import com.lexora.lexora_backend.media.dto.MediaResponse;
 import com.lexora.lexora_backend.note.dto.NoteResponse;
 import com.lexora.lexora_backend.note.entity.Note;
 import com.lexora.lexora_backend.note.mapper.NoteMapper;
@@ -51,7 +49,7 @@ public class NoteService {
         Note note = new Note();
         note.setTitle(title);
         note.setContent(content);
-        note.setWorkspace(workspace);
+        note.setWorkspaceId(workspace.getId());
         note.setCreatedAt(Instant.now());
         note.setDeleted(false);
 
@@ -76,7 +74,7 @@ public class NoteService {
         workspaceService.validateWorkspaceAccess(workspaceId, userId);
 
         Page<Note> page =
-                noteRepository.findByWorkspace_IdAndDeletedFalse(
+                noteRepository.findByWorkspaceIdAndDeletedFalse(
                         workspaceId,
                         pageable
                 );
@@ -116,13 +114,10 @@ public class NoteService {
         if (note.isDeleted())
             throw new ResourceNotFoundException("Note deleted");
 
-        Workspace workspace = note.getWorkspace();
-        if (workspace != null) {
-            workspaceService.validateWorkspaceAccess(
-                    workspace.getId(),
-                    userId
-            );
-        }
+        workspaceService.validateWorkspaceAccess(
+        note.getWorkspaceId(),
+        userId
+);
 
         return NoteMapper.toResponse(note);
     }
@@ -147,7 +142,7 @@ public class NoteService {
                         new ResourceNotFoundException("Note not found"));
 
         workspaceService.validateWorkspaceAccess(
-                note.getWorkspace().getId(),
+                note.getWorkspaceId(),
                 userId
         );
 
@@ -176,7 +171,7 @@ public class NoteService {
                         new ResourceNotFoundException("Note not found"));
 
         workspaceService.validateWorkspaceAccess(
-                note.getWorkspace().getId(),
+                note.getWorkspaceId(),
                 userId
         );
 

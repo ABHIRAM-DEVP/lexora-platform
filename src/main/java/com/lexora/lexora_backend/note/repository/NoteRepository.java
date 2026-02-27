@@ -17,11 +17,8 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
 
     List<Note> findByWorkspaceOwnerAndDeletedFalse(User owner, Pageable pageable);
 
-    Page<Note> findByWorkspace_IdAndDeletedFalse(UUID workspaceId, Pageable pageable);
+    Page<Note> findByWorkspaceIdAndDeletedFalse(UUID workspaceId, Pageable pageable);
 
-    Page<Note> findByWorkspaceIdAndDeletedFalse(
-        UUID workspaceId,
-        Pageable pageable
-);
+    
 
 }
