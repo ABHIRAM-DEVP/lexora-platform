@@ -28,5 +28,13 @@
     "name": "management.elasticsearch.uris",
     "type": "java.lang.String",
     "description": "A description for 'management.elasticsearch.uris'"
+<<<<<<< HEAD:src/main/resources/META-INF/additional-spring-configuration-metadata.json
+=======
+  },
+  {
+    "name": "spring.data.redis.time-to-live",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.data.redis.time-to-live'"
+>>>>>>> 0c1582f (phase 8):backend/lexora-backend/src/main/resources/META-INF/additional-spring-configuration-metadata.json
   }
 ]}

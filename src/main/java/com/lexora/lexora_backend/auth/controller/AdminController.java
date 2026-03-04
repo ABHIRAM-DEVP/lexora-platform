@@ -1,4 +1,3 @@
-
 package com.lexora.lexora_backend.auth.controller;
 
 import org.springframework.http.HttpStatus;

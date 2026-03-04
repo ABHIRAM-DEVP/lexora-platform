@@ -38,8 +38,6 @@ public class AuthController {
     private UserRepository userRepository;
 
     
-
-    
     @PostMapping("/signup")
 public ResponseEntity<String> signup(@Valid @RequestBody SignupRequest signupRequest) {
     try {

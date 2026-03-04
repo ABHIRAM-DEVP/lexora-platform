@@ -17,7 +17,6 @@ target/
 
 # Env
 .env
-<<<<<<< HEAD
 =======
 HELP.md
 target/
@@ -59,8 +58,3 @@ build/
 ### VS Code ###
 .vscode/
 >>>>>>> 83ede0a (Phase 5: Redis caching + Docker hardening + performance upgrade)
-=======
-.env.*
-*.env
-*.secret
->>>>>>> 0c1582f (phase 8)

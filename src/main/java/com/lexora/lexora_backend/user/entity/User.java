@@ -64,6 +64,9 @@ private Role role;
     private List<Workspace> workspaces; // ✅ This is good for JPA bidirectional mapping
 
 
+<<<<<<< HEAD:src/main/java/com/lexora/lexora_backend/user/entity/User.java
 
  
+=======
+>>>>>>> 0c1582f (phase 8):backend/lexora-backend/src/main/java/com/lexora/lexora_backend/user/entity/User.java
 }
