@@ -7,11 +7,15 @@ export function WorkspaceSelector({
   value,
   onChange,
   loading,
+  includeNoWorkspace = false,
+  noWorkspaceLabel = "Without workspace",
 }: {
   workspaces: WorkspaceResponse[];
   value: string;
   onChange: (id: string) => void;
   loading?: boolean;
+  includeNoWorkspace?: boolean;
+  noWorkspaceLabel?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -27,6 +31,9 @@ export function WorkspaceSelector({
         <option value="">
           {workspaces.length === 0 ? "No workspaces" : "Select workspace"}
         </option>
+        {includeNoWorkspace && (
+          <option value="NO_WORKSPACE">{noWorkspaceLabel}</option>
+        )}
         {workspaces.map((w) => (
           <option key={w.id} value={w.id}>
             {w.name}

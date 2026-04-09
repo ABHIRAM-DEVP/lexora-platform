@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useToast } from "@/context/ToastContext";
-import { apiFetch, userHeaderInit } from "@/lib/api";
+import { apiFetch, parseJson, userHeaderInit } from "@/lib/api";
 import { API_BASE } from "@/lib/config";
 import { fetchActiveWorkspaces } from "@/lib/workspace-api";
 import type {
@@ -15,7 +15,8 @@ import type {
   WorkspaceResponse,
 } from "@/types/api";
 import { WorkspaceSelector } from "@/components/WorkspaceSelector";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import type * as React from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function PublishStudioPage() {
   const { push } = useToast();
@@ -33,6 +34,10 @@ export default function PublishStudioPage() {
   const [shelf, setShelf] = useState<PublicationRow[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [mediaPick, setMediaPick] = useState<MediaResponse[]>([]);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const selectedNote = notes.find((n) => n.id === noteId);
 
   useEffect(() => {
     fetchActiveWorkspaces().then((w) => {
@@ -69,7 +74,7 @@ export default function PublishStudioPage() {
     reload();
   }, [reload]);
 
-  async function publishNote(e: FormEvent) {
+  async function publishNote(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!noteId) {
       push("warning", "Pick a note to publish");
@@ -101,9 +106,10 @@ export default function PublishStudioPage() {
   }
 
   async function searchShelf() {
-    const res = await fetch(
-      `${API_BASE}/api/public/blogs?size=8&${shelfQ ? `tag=${encodeURIComponent(shelfQ)}` : ""}`,
-    );
+    const query = shelfQ.trim() ? `tag=${encodeURIComponent(shelfQ)}` : "";
+    let url = `${API_BASE}/api/public/blogs?size=8`;
+    if (query) url += `&${query}`;
+    const res = await fetch(url);
     if (res.ok) {
       const page = await res.json();
       setShelf(page.content ?? []);
@@ -145,6 +151,42 @@ export default function PublishStudioPage() {
     }
     push("success", "Media restored");
     reload();
+  }
+
+  async function uploadMedia() {
+    if (!mediaFile) {
+      setMediaUploadError("Choose a file first");
+      return;
+    }
+    if (!wsId) {
+      setMediaUploadError("Select a workspace before uploading media");
+      return;
+    }
+    setUploadingMedia(true);
+    setMediaUploadError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", mediaFile);
+      fd.append("workspaceId", wsId);
+      const token = localStorage.getItem("lexora_access_token");
+      const res = await fetch(`${API_BASE}/api/media/upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await parseJson<{ error?: string }>(res);
+        throw new Error(err?.error ?? "Upload failed");
+      }
+      push("success", "Media uploaded to workspace");
+      setMediaFile(null);
+      reload();
+    } catch (e) {
+      setMediaUploadError((e as Error).message);
+    } finally {
+      setUploadingMedia(false);
+    }
   }
 
   return (
@@ -204,8 +246,11 @@ export default function PublishStudioPage() {
 
           <form className="space-y-3" onSubmit={publishNote}>
             <div>
-              <label className="text-xs text-[var(--lx-text-muted)]">Note</label>
+              <label htmlFor="publish-note-id" className="text-xs text-[var(--lx-text-muted)]">
+                Note
+              </label>
               <select
+                id="publish-note-id"
                 className="lx-input mt-1"
                 value={noteId}
                 onChange={(e) => setNoteId(e.target.value)}
@@ -218,6 +263,12 @@ export default function PublishStudioPage() {
                 ))}
               </select>
             </div>
+            {selectedNote ? (
+              <div className="rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-panel)] p-3 text-sm text-[var(--lx-text-muted)]">
+                <p className="font-semibold text-[var(--lx-text)]">Preview</p>
+                <p className="mt-2 text-sm line-clamp-3">{selectedNote.content}</p>
+              </div>
+            ) : null}
             <input
               className="lx-input"
               placeholder="Publication title"
@@ -237,6 +288,27 @@ export default function PublishStudioPage() {
               value={tags}
               onChange={(e) => setTags(e.target.value)}
             />
+            <div className="rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-panel)] p-3 text-sm text-[var(--lx-text-muted)]">
+              <p className="font-semibold text-[var(--lx-text)]">Upload media for workspace</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <input
+                  type="file"
+                  className="lx-input flex-1 min-w-[180px]"
+                  onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  className="lx-btn-secondary"
+                  onClick={uploadMedia}
+                  disabled={uploadingMedia}
+                >
+                  {uploadingMedia ? "Uploading…" : "Upload"}
+                </button>
+              </div>
+              {mediaUploadError && (
+                <p className="mt-2 text-xs text-red-500">{mediaUploadError}</p>
+              )}
+            </div>
             <button type="submit" className="lx-btn-primary w-full">
               Publish note
             </button>

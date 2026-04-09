@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { apiFetch, parseJson } from "@/lib/api";
-import type { ActivityLog, NoteResponse, WorkspaceResponse } from "@/types/api";
-import type { MediaResponse } from "@/types/api";
+import type { ActivityLog, MediaResponse, NoteResponse, WorkspaceResponse } from "@/types/api";
 import {
   DocumentTextIcon,
   PhotoIcon,
@@ -22,14 +21,16 @@ type FeedItem =
   | { kind: "activity"; at: string; log: ActivityLog };
 
 function shortId(id: string) {
-  return id.replace(/-/g, "").slice(-6).toUpperCase();
+  return id.replaceAll("-", "").slice(-6).toUpperCase();
 }
+
+type WorkspaceOverviewDashboardProps = {
+  readonly workspaceId: string;
+};
 
 export function WorkspaceOverviewDashboard({
   workspaceId,
-}: {
-  workspaceId: string;
-}) {
+}: WorkspaceOverviewDashboardProps) {
   const { user } = useAuth();
   const { push } = useToast();
   const [ws, setWs] = useState<WorkspaceResponse | null>(null);
@@ -201,65 +202,81 @@ export function WorkspaceOverviewDashboard({
             </div>
           )}
           {feed.map((item, idx) => {
-            const icon =
-              item.kind === "note" ? (
-                <DocumentTextIcon className="h-4 w-4 text-white" />
-              ) : item.kind === "media" ? (
-                <PhotoIcon className="h-4 w-4 text-white" />
-              ) : (
-                <ClockIcon className="h-4 w-4 text-white" />
-              );
-            const bg =
-              item.kind === "note"
-                ? "from-blue-600 to-indigo-600"
-                : item.kind === "media"
-                  ? "from-amber-500 to-orange-600"
-                  : "from-violet-600 to-fuchsia-600";
+            let iconElement = <ClockIcon className="h-4 w-4 text-white" />;
+            let bg = "from-violet-600 to-fuchsia-600";
+            let title = "View workspace activity";
+            let href = `/dashboard/workspaces/${workspaceId}`;
+            let actionLabel = "View workspace";
+
+            if (item.kind === "note") {
+              iconElement = <DocumentTextIcon className="h-4 w-4 text-white" />;
+              bg = "from-blue-600 to-indigo-600";
+              title = "View note";
+              href = `/dashboard/workspaces/${workspaceId}/notes#${item.note.id}`;
+              actionLabel = "Open note";
+            } else if (item.kind === "media") {
+              iconElement = <PhotoIcon className="h-4 w-4 text-white" />;
+              bg = "from-amber-500 to-orange-600";
+              title = "View media";
+              href = `/dashboard/workspaces/${workspaceId}/media`;
+              actionLabel = "Open media library";
+            }
+
             return (
-              <div key={`${item.kind}-${idx}`} className="lx-card flex gap-4 !py-4">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}
-                >
-                  {icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  {item.kind === "note" && (
-                    <>
-                      <p className="font-medium text-[var(--lx-text)]">
-                        {item.note.title}
-                      </p>
-                      <p className="line-clamp-2 text-sm text-[var(--lx-text-muted)]">
-                        {item.note.content}
-                      </p>
-                    </>
-                  )}
-                  {item.kind === "media" && (
-                    <>
-                      <p className="font-medium text-[var(--lx-text)]">
-                        {item.media.fileName}
-                      </p>
-                      <p className="text-sm text-[var(--lx-text-muted)]">
-                        {item.media.fileType} · {(item.media.size / 1024).toFixed(1)} KB
-                      </p>
-                    </>
-                  )}
-                  {item.kind === "activity" && (
-                    <>
-                      <p className="font-medium text-[var(--lx-text)]">
-                        {item.log.action}
-                      </p>
-                      {item.log.entityType && (
-                        <p className="text-sm text-[var(--lx-text-muted)]">
-                          {item.log.entityType}
+              <Link
+                key={`${item.kind}-${idx}`}
+                href={href}
+                className="group block"
+                title={title}
+              >
+                <div className="lx-card flex gap-4 !py-4 transition hover:ring-1 hover:ring-[var(--lx-primary)]/20">
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}
+                  >
+                    {iconElement}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {item.kind === "note" && (
+                      <>
+                        <p className="font-medium text-[var(--lx-text)]">
+                          {item.note.title}
                         </p>
-                      )}
-                    </>
-                  )}
-                  <p className="mt-2 text-xs text-[var(--lx-text-muted)]">
-                    {new Date(item.at).toLocaleString()}
-                  </p>
+                        <p className="line-clamp-2 text-sm text-[var(--lx-text-muted)]">
+                          {item.note.content}
+                        </p>
+                      </>
+                    )}
+                    {item.kind === "media" && (
+                      <>
+                        <p className="font-medium text-[var(--lx-text)]">
+                          {item.media.fileName}
+                        </p>
+                        <p className="text-sm text-[var(--lx-text-muted)]">
+                          {item.media.fileType} · {(item.media.size / 1024).toFixed(1)} KB
+                        </p>
+                      </>
+                    )}
+                    {item.kind === "activity" && (
+                      <>
+                        <p className="font-medium text-[var(--lx-text)]">
+                          {item.log.action}
+                        </p>
+                        {item.log.entityType && (
+                          <p className="text-sm text-[var(--lx-text-muted)]">
+                            {item.log.entityType}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <p className="mt-2 text-xs text-[var(--lx-text-muted)]">
+                      {new Date(item.at).toLocaleString()}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-[var(--lx-primary)]">
+                      {actionLabel}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
