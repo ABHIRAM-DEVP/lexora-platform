@@ -1,44 +1,133 @@
-// src/context/AuthContext.tsx
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { login as loginService, logout as logoutService, getCurrentUser, User } from "@/services/authService";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { apiFetch, clearTokens, setTokens } from "@/lib/api";
+import { API_BASE } from "@/lib/config";
+import { decodeJwtPayload, getRoleFromToken } from "@/lib/jwt";
+import { useRouter } from "next/navigation";
 
-export interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+const UKEY = "lexora_username";
+const EKEY = "lexora_email";
+
+export type AuthUser = {
+  id: string;
+  username: string;
+  email: string | null;
+  role: string | null;
+};
+
+type AuthCtx = {
+  user: AuthUser | null;
+  loading: boolean;
+  isAdmin: boolean;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshProfile: () => void;
+};
+
+const AuthCtx = createContext<AuthCtx | null>(null);
+
+function readStoredUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("lexora_access_token");
+  if (!token) return null;
+  const payload = decodeJwtPayload(token);
+  if (!payload?.sub) return null;
+  const role = getRoleFromToken(token);
+  const username = localStorage.getItem(UKEY) ?? "User";
+  const email = localStorage.getItem(EKEY);
+  return {
+    id: payload.sub,
+    username,
+    email,
+    role,
+  };
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (currentUser) setUser(currentUser);
+  const hydrate = useCallback(() => {
+    setUser(readStoredUser());
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const loggedInUser = await loginService(email, password);
-    setUser(loggedInUser);
-  };
+  useEffect(() => {
+    hydrate();
+    setLoading(false);
+  }, [hydrate]);
 
-  const logout = () => {
-    logoutService();
+  const login = useCallback(async (username: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = (await res.json()) as {
+      accessToken?: string;
+      refreshToken?: string;
+      message?: string;
+    };
+    if (!res.ok || !data.accessToken) {
+      throw new Error(data.message ?? "Sign-in failed");
+    }
+    setTokens(data.accessToken, data.refreshToken ?? null);
+    localStorage.setItem(UKEY, username);
+    hydrate();
+  }, [hydrate]);
+
+  const logout = useCallback(async () => {
+    const email = localStorage.getItem(EKEY);
+    if (email) {
+      try {
+        await apiFetch("/api/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+    clearTokens();
+    localStorage.removeItem(UKEY);
+    localStorage.removeItem("lexora_last_workspace");
     setUser(null);
-  };
+    router.push("/login");
+  }, [router]);
+
+  const isAdmin = useMemo(() => user?.role === "ADMIN", [user?.role]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthCtx.Provider
+      value={{
+        user,
+        loading,
+        isAdmin,
+        login,
+        logout,
+        refreshProfile: hydrate,
+      }}
+    >
       {children}
-    </AuthContext.Provider>
+    </AuthCtx.Provider>
   );
-};
+}
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
-};
+export function useAuth() {
+  const ctx = useContext(AuthCtx);
+  if (!ctx) throw new Error("useAuth needs AuthProvider");
+  return ctx;
+}
+
+export function storeEmailAfterSignup(email: string) {
+  localStorage.setItem(EKEY, email);
+}

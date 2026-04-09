@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import javax.print.attribute.standard.Media;
 
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,8 +70,19 @@ public class MediaService {
         if (file == null || file.isEmpty()) throw new InvalidFileTypeException("Uploaded file is empty");
 
         String detectedType = tika.detect(file.getInputStream());
-        if (!(detectedType.startsWith("image/") || detectedType.equals("application/pdf")))
-            throw new InvalidFileTypeException("Only images and PDFs allowed");
+        // Allow images, PDFs, common document formats, video, audio, and text
+        boolean allowed = detectedType.startsWith("image/")
+                || detectedType.equals("application/pdf")
+                || detectedType.startsWith("text/")
+                || detectedType.startsWith("video/")
+                || detectedType.startsWith("audio/")
+                || detectedType.contains("spreadsheet")
+                || detectedType.contains("word")
+                || detectedType.contains("presentation")
+                || detectedType.contains("zip")
+                || detectedType.equals("application/octet-stream");
+        if (!allowed)
+            throw new InvalidFileTypeException("Unsupported file type: " + detectedType);
 
         if (file.getSize() > MAX_SIZE) throw new FileSizeExceededException("File exceeds 10MB");
 
@@ -282,7 +292,7 @@ public class MediaService {
     // Helper: Validate workspace access
     // ---------------------------
     private void validateWorkspace(UUID workspaceId, UUID userId) {
-        workspaceService.getWorkspaceById(authService.getCurrentUser(), workspaceId);
+        workspaceService.validateWorkspaceAccess(workspaceId, userId);
     }
 
     // ---------------------------
@@ -297,20 +307,20 @@ public class MediaService {
     }
 
     private MediaResponse mapToResponse(MediaFile file) {
-    return new MediaResponse(
-            file.getId(),
-            file.getFileName(),
-            file.getFileType(),
-            file.getWorkspaceId(),
-            file.getOwnerId(),
-            file.getSize(),
-            file.getDescription(),
-            file.getTags(), 
-            file.getCreatedAt() != null ? file.getCreatedAt().toString() : null,
-            file.getUpdatedAt() != null ? file.getUpdatedAt().toString() : null,
-            file.isDeleted()
-    );
-}
+        return MediaResponse.builder()
+                .id(file.getId())
+                .fileName(file.getFileName())
+                .fileType(file.getFileType())
+                .workspaceId(file.getWorkspaceId())
+                .ownerId(file.getOwnerId())
+                .size(file.getSize())
+                .description(file.getDescription())
+                .tags(file.getTags())
+                .createdAt(file.getCreatedAt() != null ? file.getCreatedAt().toString() : null)
+                .updatedAt(file.getUpdatedAt() != null ? file.getUpdatedAt().toString() : null)
+                .deleted(file.isDeleted())
+                .build();
+    }
 
 // ---------------------------
 // List deleted files

@@ -50,6 +50,7 @@ public class NoteService {
         note.setTitle(title);
         note.setContent(content);
         note.setWorkspaceId(workspace.getId());
+        note.setAuthorId(userId);
         note.setCreatedAt(Instant.now());
         note.setDeleted(false);
 

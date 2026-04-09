@@ -18,11 +18,8 @@ WORKDIR /app
 # Copy the JAR from the build stage
 COPY --from=build /app/target/lexora-backend-0.0.1-SNAPSHOT.jar app.jar
 
-<<<<<<< HEAD:Dockerfile
 # Copy the .env file for local development
 COPY .env .env
-=======
->>>>>>> 0c1582f (phase 8):backend/lexora-backend/Dockerfile
 
 # Expose port 8080
 EXPOSE 8080

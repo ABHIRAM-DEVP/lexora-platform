@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -25,32 +26,51 @@ import com.lexora.lexora_backend.workspace.events.MemberAddedEvent;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceMemberRepository;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceRepository;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 public class WorkspaceService {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceService.class);
 
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final DomainEventPublisher eventPublisher;
+
+    public WorkspaceService(
+            WorkspaceRepository workspaceRepository,
+            WorkspaceMemberRepository workspaceMemberRepository,
+            UserRepository userRepository,
+            AuthService authService,
+            DomainEventPublisher eventPublisher) {
+        this.workspaceRepository = workspaceRepository;
+        this.workspaceMemberRepository = workspaceMemberRepository;
+        this.userRepository = userRepository;
+        this.authService = authService;
+        this.eventPublisher = eventPublisher;
+    }
 
     /* ============================================================
        CREATE WORKSPACE
        ============================================================ */
-    public Workspace createWorkspace(User owner, String name, String description) {
+    public Workspace createWorkspace(User owner, String name, String description, String accessType) {
 
     if (name == null || name.isBlank()) {
         throw new IllegalArgumentException("Workspace name cannot be empty");
+    }
+
+    if (accessType == null || (!accessType.equals("PUBLIC") && !accessType.equals("PRIVATE") && !accessType.equals("COLLABORATIVE"))) {
+        throw new IllegalArgumentException("Invalid access type. Must be PUBLIC, PRIVATE, or COLLABORATIVE");
     }
 
     // 1️⃣ Create workspace entity
     Workspace ws = new Workspace();
     ws.setName(name);
     ws.setDescription(description);
+    ws.setAccessType(accessType);
     ws.setOwner(owner);
     ws.setDeleted(false);
 
@@ -77,7 +97,25 @@ public class WorkspaceService {
         if (user.getRole() == Role.ADMIN) {
             return workspaceRepository.findByDeletedFalse();
         }
-        return workspaceRepository.findByOwnerAndDeletedFalse(user);
+
+        List<Workspace> owned = workspaceRepository.findByOwnerAndDeletedFalse(user);
+        
+        try {
+            List<UUID> memberWorkspaceIds = workspaceMemberRepository.findAllByUserId(user.getId()).stream()
+                    .map(WorkspaceMember::getWorkspaceId)
+                    .toList();
+
+            List<Workspace> memberWorkspaces = workspaceRepository.findByDeletedFalse().stream()
+                    .filter(workspace -> memberWorkspaceIds.contains(workspace.getId()))
+                    .toList();
+
+            return Stream.concat(owned.stream(), memberWorkspaces.stream())
+                    .distinct()
+                    .toList();
+        } catch (Exception e) {
+            log.error("Failed to fetch member workspaces from Mongo: {}. Returning owned only.", e.getMessage());
+            return owned;
+        }
     }
 
     /* ============================================================
@@ -86,19 +124,17 @@ public class WorkspaceService {
     @Cacheable(value = "workspaces", key = "#workspaceId + ':' + #user.id")
 public WorkspaceResponse getWorkspaceById(User user, UUID workspaceId) {
 
-    Workspace ws = workspaceRepository.findById(workspaceId)
-            .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
-
-    // Check access
-    if (user.getRole() != Role.ADMIN && !ws.getMembers().containsKey(user.getId())) {
-        throw new AccessDeniedException("Access denied to this workspace");
-    }
+    Workspace ws = user.getRole() == Role.ADMIN
+            ? workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"))
+            : validateWorkspaceAccess(workspaceId, user.getId());
 
     // Map to DTO
     WorkspaceResponse resp = new WorkspaceResponse();
     resp.setId(ws.getId());
     resp.setName(ws.getName());
     resp.setDescription(ws.getDescription());
+    resp.setAccessType(ws.getAccessType());
     resp.setOwnerId(ws.getOwner().getId());
     resp.setDeleted(ws.isDeleted());
 
@@ -247,6 +283,14 @@ workspaceMemberRepository.save(member);
        GET USER ROLE INSIDE WORKSPACE
        ============================================================ */
     public String getUserRole(UUID workspaceId, UUID userId) {
+        // 1. If physical owner in Postgres -> OWNER
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+        if (workspace.getOwner().getId().equals(userId)) {
+            return WorkspaceRole.OWNER.name();
+        }
+
+        // 2. Otherwise check Mongo
         WorkspaceMember member = workspaceMemberRepository
                 .findByWorkspaceIdAndUserId(workspaceId, userId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this workspace."));
@@ -257,46 +301,73 @@ workspaceMemberRepository.save(member);
        ROLE VALIDATION HELPERS
        ============================================================ */
     private void validateOwnerOrAdmin(UUID workspaceId, UUID userId) {
-    WorkspaceMember member = workspaceMemberRepository
-            .findByWorkspaceIdAndUserId(workspaceId, userId)
-            .orElseThrow(() -> new AccessDeniedException("Only OWNER or ADMIN can perform this action."));
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    if (member.getRole() != WorkspaceRole.OWNER && member.getRole() != WorkspaceRole.ADMIN) {
-        throw new AccessDeniedException("Only OWNER or ADMIN can perform this action.");
+        if (workspace.getOwner().getId().equals(userId)) {
+            return;
+        }
+
+        WorkspaceMember member = workspaceMemberRepository
+                .findByWorkspaceIdAndUserId(workspaceId, userId)
+                .orElseThrow(() -> new AccessDeniedException("Only OWNER or ADMIN can perform this action."));
+
+        if (member.getRole() != WorkspaceRole.OWNER && member.getRole() != WorkspaceRole.ADMIN) {
+            throw new AccessDeniedException("Only OWNER or ADMIN can perform this action.");
+        }
     }
-}
 
-private void validateOwner(UUID workspaceId, UUID userId) {
-    WorkspaceMember member = workspaceMemberRepository
-            .findByWorkspaceIdAndUserId(workspaceId, userId)
-            .orElseThrow(() -> new AccessDeniedException("Only OWNER can perform this action."));
+    private void validateOwner(UUID workspaceId, UUID userId) {
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    if (member.getRole() != WorkspaceRole.OWNER) {
-        throw new AccessDeniedException("Only OWNER can perform this action.");
+        if (workspace.getOwner().getId().equals(userId)) {
+            return;
+        }
+
+        WorkspaceMember member = workspaceMemberRepository
+                .findByWorkspaceIdAndUserId(workspaceId, userId)
+                .orElseThrow(() -> new AccessDeniedException("Only OWNER can perform this action."));
+
+        if (member.getRole() != WorkspaceRole.OWNER) {
+            throw new AccessDeniedException("Only OWNER can perform this action.");
+        }
     }
-}
 
 
 
 public Map<UUID, String> getWorkspaceMembers(UUID workspaceId, UUID requesterId) {
-    // Check if requester is OWNER or ADMIN
-    WorkspaceMember requester = workspaceMemberRepository
-            .findByWorkspaceIdAndUserId(workspaceId, requesterId)
-            .orElseThrow(() -> new AccessDeniedException("Not authorized"));
+    // Check if requester is the Postgres workspace owner first
+    Workspace workspace = workspaceRepository.findById(workspaceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    if (requester.getRole() != WorkspaceRole.OWNER && requester.getRole() != WorkspaceRole.ADMIN) {
-        throw new AccessDeniedException("Only OWNER or ADMIN can perform this action.");
+    boolean isPostgresOwner = workspace.getOwner().getId().equals(requesterId);
+
+    if (!isPostgresOwner) {
+        // Fall back to MongoDB member check
+        WorkspaceMember requester = workspaceMemberRepository
+                .findByWorkspaceIdAndUserId(workspaceId, requesterId)
+                .orElseThrow(() -> new AccessDeniedException("Not authorized"));
+
+        if (requester.getRole() != WorkspaceRole.OWNER && requester.getRole() != WorkspaceRole.ADMIN) {
+            throw new AccessDeniedException("Only OWNER or ADMIN can perform this action.");
+        }
     }
 
     // Fetch all members from workspace_members
     List<WorkspaceMember> members = workspaceMemberRepository.findAllByWorkspaceId(workspaceId);
 
     // Map to UUID -> String
-    return members.stream()
+    Map<UUID, String> result = members.stream()
             .collect(Collectors.toMap(
                     WorkspaceMember::getUserId,
-                    member -> member.getRole().name() // convert enum to string
+                    member -> member.getRole().name()
             ));
+
+    // Always include the Postgres owner with OWNER role
+    result.putIfAbsent(workspace.getOwner().getId(), WorkspaceRole.OWNER.name());
+
+    return result;
 }
 
 // public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
@@ -317,6 +388,12 @@ public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
     Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
+    // 1. If physical owner in Postgres -> ALLOW
+    if (workspace.getOwner().getId().equals(userId)) {
+        return workspace;
+    }
+
+    // 2. Otherwise check membership in Mongo (for Collaborative access)
     workspaceMemberRepository
             .findByWorkspaceIdAndUserId(workspaceId, userId)
             .orElseThrow(() ->
@@ -326,7 +403,7 @@ public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
 }
 
 
-    private final DomainEventPublisher eventPublisher;
+
 
     public void addMember(UUID workspaceId,
                           UUID userIdToAdd,

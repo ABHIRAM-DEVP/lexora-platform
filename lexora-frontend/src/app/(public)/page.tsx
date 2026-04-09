@@ -1,120 +1,80 @@
-"use client";
+import Link from "next/link";
+import {
+  BuildingOffice2Icon,
+  ChartBarIcon,
+  PaintBrushIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
 
-import { useState } from "react";
-import { signup } from "@/services/authService";
-import { useRouter } from "next/navigation";
+const feats = [
+  {
+    title: "Workspaces",
+    desc: "Private and org lanes with crisp membership.",
+    icon: BuildingOffice2Icon,
+  },
+  {
+    title: "Analytics",
+    desc: "Signals from real activity, not vanity charts.",
+    icon: ChartBarIcon,
+  },
+  {
+    title: "Role-ready",
+    desc: "OWNER → VIEWER, enforced at the API edge.",
+    icon: ShieldCheckIcon,
+  },
+  {
+    title: "Design",
+    desc: "Formal blues, gold accents, calm typography.",
+    icon: PaintBrushIcon,
+  },
+];
 
-export default function SignupPage() {
-  const router = useRouter();
-
-  const [form, setForm] = useState({ name:"",email: "", password: "" });
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const validatePassword = (password: string) => {
-    if (password.length < 6) return "Weak";
-    if (password.length < 10) return "Medium";
-    return "Strong";
-  };
-
-  const strength = validatePassword(form.password);
-
-  const handleChange = (e: any) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      await signup(form.name, form.email, form.password);
-      setSuccess("Account created successfully 🚀 Redirecting...");
-      setTimeout(() => router.push("/login"), 2000);
-    } catch (err: any) {
-      setError(err.response?.data || "Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export default function LandingPage() {
   return (
-    <div className="flex justify-center items-center py-24">
-      <div className="relative backdrop-blur-2xl bg-white/5 border border-white/10 p-10 rounded-3xl shadow-2xl w-full max-w-md hover:shadow-cyan-500/20 transition-all duration-500">
-        <h2 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-          Create Your Lexora Account
-        </h2>
-
-        {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-400 p-3 rounded-lg mb-4 text-sm animate-pulse">
-            {error}
+    <main className="relative mx-auto max-w-6xl px-4 pb-24 pt-12 md:px-6 md:pt-20">
+      <div className="grid gap-12 md:grid-cols-2 md:items-center">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--lx-primary)]">
+            Lexora
+          </p>
+          <h1 className="mt-4 bg-gradient-to-br from-slate-900 via-[var(--lx-primary)] to-[var(--lx-gold)] bg-clip-text text-4xl font-semibold leading-tight text-transparent dark:from-white dark:via-blue-200 dark:to-amber-100 md:text-5xl">
+            A workspace platform built for clarity.
+          </h1>
+          <p className="mt-6 max-w-xl text-lg text-[var(--lx-text-muted)]">
+            Spin up workspaces, capture notes and media, publish to the public
+            shelf, and watch the console stay composed — even on busy days.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/signup" className="lx-btn-primary">
+              Get started
+            </Link>
+            <Link href="/login" className="lx-btn-secondary">
+              Sign in
+            </Link>
           </div>
-        )}
+        </div>
 
-        {success && (
-          <div className="bg-green-500/20 border border-green-500 text-green-400 p-3 rounded-lg mb-4 text-sm">
-            {success}
+        <div className="relative">
+          <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-blue-600/20 via-slate-900/40 to-amber-500/20 blur-2xl" />
+          <div className="relative lx-card overflow-hidden border-[var(--lx-border)] bg-gradient-to-b from-[var(--lx-panel-solid)] to-slate-50/80 dark:to-slate-950/80">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--lx-text-muted)]">
+              Why teams adopt Lexora
+            </p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              {feats.map(({ title, desc, icon: Icon }) => (
+                <div
+                  key={title}
+                  className="rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-panel)]/80 p-4"
+                >
+                  <Icon className="h-6 w-6 text-[var(--lx-primary)]" />
+                  <p className="mt-3 font-semibold text-[var(--lx-text)]">{title}</p>
+                  <p className="mt-1 text-sm text-[var(--lx-text-muted)]">{desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="text"
-            name="name"
-            placeholder="Full Name"
-            value={form.name}
-            onChange={handleChange}
-            required
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition"
-          />
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email Address"
-            value={form.email}
-            onChange={handleChange}
-            required
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition"
-          />
-
-          <div>
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
-            />
-            {form.password && (
-              <p
-                className={`text-sm mt-2 ${
-                  strength === "Weak"
-                    ? "text-red-400"
-                    : strength === "Medium"
-                    ? "text-yellow-400"
-                    : "text-green-400"
-                }`}
-              >
-                Password Strength: {strength}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 rounded-xl font-bold text-black bg-gradient-to-r from-cyan-400 to-purple-500 hover:scale-105 transition-all duration-300 shadow-lg shadow-purple-500/40"
-          >
-            {loading ? "Creating..." : "Create Account"}
-          </button>
-        </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

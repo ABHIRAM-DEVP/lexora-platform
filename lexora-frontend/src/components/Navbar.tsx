@@ -1,76 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
-import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useEffect, useState } from "react";
 
-export default function PublicNavbar() {
+export function Navbar() {
   const { user } = useAuth();
-  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 30);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 30);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  const linkStyle = (path: string) =>
-    `relative px-5 py-2 rounded-full transition-all duration-300 
-    ${
-      pathname === path
-        ? "text-cyan-400"
-        : "text-white/80 hover:text-white"
-    }`;
 
   return (
     <header
-      className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+      className={`fixed left-0 right-0 top-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "backdrop-blur-2xl bg-white/5 border-b border-white/10 shadow-lg"
-          : "bg-transparent"
+          ? "border-b border-[var(--lx-border)] bg-[var(--lx-panel)] shadow-sm backdrop-blur-xl"
+          : "border-b border-transparent bg-[var(--lx-panel)]/60 backdrop-blur-md"
       }`}
     >
-      <div className="flex justify-between items-center px-8 sm:px-16 py-4">
-        {/* LOGO */}
-        <Link href="/">
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-wide 
-          bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 
-          bg-clip-text text-transparent animate-gradient-x">
-            Lexora
-          </h1>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
+        <Link href="/" className="group flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--lx-primary)] to-indigo-950 shadow-md ring-1 ring-white/20" />
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-semibold tracking-tight text-[var(--lx-text)] md:text-base">
+              Lexora
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--lx-text-muted)]">
+              Workspace platform
+            </span>
+          </div>
         </Link>
 
-        {/* NAVIGATION */}
-        <nav className="flex gap-4 items-center">
-
-          {!user ? (
-            <>
-              <Link href="/login" className={linkStyle("/login")}>
-                Login
-                <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-cyan-400 transition-all duration-300 group-hover:w-full"></span>
-              </Link>
-
-              <Link
-                href="/signup"
-                className="relative px-6 py-2 rounded-full font-semibold text-black
-                bg-gradient-to-r from-cyan-400 to-purple-500
-                hover:scale-110 transition-all duration-300
-                shadow-lg shadow-cyan-500/40 overflow-hidden group"
-              >
-                <span className="relative z-10">Get Started</span>
-                <span className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition duration-300 blur-xl"></span>
-              </Link>
-            </>
-          ) : (
-            <Link
-              href="/dashboard"
-              className="px-6 py-2 rounded-full bg-gradient-to-r from-purple-500 to-cyan-400 text-black font-semibold hover:scale-110 transition-all shadow-lg shadow-purple-500/40"
-            >
+        <nav className="flex items-center gap-2 md:gap-4">
+          <Link
+            href="/"
+            className="hidden text-sm font-medium text-[var(--lx-text-muted)] hover:text-[var(--lx-primary)] sm:inline"
+          >
+            Home
+          </Link>
+          <Link
+            href="/login"
+            className="text-sm font-medium text-[var(--lx-text-muted)] hover:text-[var(--lx-primary)]"
+          >
+            Login
+          </Link>
+          <ThemeToggle />
+          {user ? (
+            <Link href="/dashboard" className="lx-btn-primary !py-2 !text-xs md:!text-sm">
               Dashboard
+            </Link>
+          ) : (
+            <Link href="/signup" className="lx-btn-primary !py-2 !text-xs md:!text-sm">
+              Get started
             </Link>
           )}
         </nav>

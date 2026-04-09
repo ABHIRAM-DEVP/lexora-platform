@@ -1,4 +1,5 @@
 spring:
+
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
@@ -15,28 +16,24 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGO_URI}
-      database: ${MONGO_INITDB_DATABASE}
+      uri: ${MONGO_URI:mongodb://localhost:27017/lexora}
+      database: ${MONGO_INITDB_DATABASE:lexora}
 
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       time-to-live: 600000
 
   cache:
     type: redis
-    redis:
-      time-to-live: 600000
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     consumer:
       group-id: lexora-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -55,11 +52,11 @@ spring:
       write-dates-as-timestamps: false
 
 jwt:
-  secret: ${JWT_SECRET}
-  expiration-ms: ${JWT_EXPIRATION_MS}
+  secret: ${JWT_SECRET:default-secret-key-for-development-only-change-in-production}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 storage:
-  local-path: /app/uploads
+  localPath: /app/uploads
 
 logging:
   level:
@@ -74,4 +71,4 @@ management:
     enable:
       all: true
   elasticsearch:
-    uris: http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
+    uris: http://elasticsearch:9200
