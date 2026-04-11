@@ -46,7 +46,7 @@ public class Note {
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Instant deletedAt;
 
-    @Column(name = "workspace_id", nullable = false)
+    @Column(name = "workspace_id", nullable = true)
     private UUID workspaceId;
 
     @ManyToOne(fetch = FetchType.LAZY)

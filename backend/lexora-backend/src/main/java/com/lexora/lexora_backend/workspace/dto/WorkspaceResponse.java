@@ -1,5 +1,6 @@
 package com.lexora.lexora_backend.workspace.dto;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import lombok.Getter;
@@ -16,4 +17,5 @@ public class WorkspaceResponse {
     private String accessType;
     private UUID ownerId;
     private boolean deleted;
+    private LocalDateTime deletedAt;
 }

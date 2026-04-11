@@ -18,8 +18,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     
     // Search methods for finding users to add to workspace
     Optional<User> findByEmailIgnoreCase(String email);
+    Optional<User> findByUsernameIgnoreCase(String username);
 
     List<User> findByEmailContainingIgnoreCaseOrUsernameContainingIgnoreCase(String emailPattern, String usernamePattern);
+
+    List<User> findTop8ByOrderByUsernameAsc();
 
   
 }

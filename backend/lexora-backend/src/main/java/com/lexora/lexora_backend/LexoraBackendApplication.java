@@ -8,6 +8,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 // docker compose up
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableJpaRepositories(basePackages = "com.lexora.lexora_backend")
 @EnableMongoRepositories(basePackages = "com.lexora.lexora_backend")
 @EnableCaching
+@EnableScheduling
 public class LexoraBackendApplication {
     public static void main(String[] args) {
         SpringApplication.run(LexoraBackendApplication.class, args);

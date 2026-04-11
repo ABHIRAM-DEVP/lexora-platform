@@ -59,6 +59,8 @@ public class Workspace {
 
     private boolean deleted = false;
 
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -92,6 +94,8 @@ public class Workspace {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
     public Map<UUID, String> getMembers() { return members; }
     public void setMembers(Map<UUID, String> members) { this.members = members; }
 }

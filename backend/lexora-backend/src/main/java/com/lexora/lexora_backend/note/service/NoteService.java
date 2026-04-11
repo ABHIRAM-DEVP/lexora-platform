@@ -43,16 +43,20 @@ public class NoteService {
             String content,
             UUID workspaceId) {
 
-        Workspace workspace =
-                workspaceService.validateWorkspaceAccess(workspaceId, userId);
-
         Note note = new Note();
         note.setTitle(title);
         note.setContent(content);
-        note.setWorkspaceId(workspace.getId());
         note.setAuthorId(userId);
         note.setCreatedAt(Instant.now());
         note.setDeleted(false);
+
+        if (workspaceId != null) {
+            Workspace workspace =
+                    workspaceService.validateWorkspaceAccess(workspaceId, userId);
+            note.setWorkspaceId(workspace.getId());
+        } else {
+            note.setWorkspaceId(null);
+        }
 
         return NoteMapper.toResponse(
                 noteRepository.save(note)
@@ -96,6 +100,24 @@ public class NoteService {
 
     }
 
+    public PagedResponse<NoteResponse> listPersonalNotes(UUID userId, Pageable pageable) {
+        Page<Note> page = noteRepository.findByAuthorIdAndWorkspaceIdIsNullAndDeletedFalse(userId, pageable);
+
+        List<NoteResponse> content =
+                page.getContent()
+                        .stream()
+                        .map(NoteMapper::toResponse)
+                        .collect(Collectors.toList());
+
+        return new PagedResponse<>(
+                content,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages()
+        );
+    }
+
     // ---------------------------
     // Get Note (cached)
     // ---------------------------
@@ -115,10 +137,7 @@ public class NoteService {
         if (note.isDeleted())
             throw new ResourceNotFoundException("Note deleted");
 
-        workspaceService.validateWorkspaceAccess(
-        note.getWorkspaceId(),
-        userId
-);
+        validateNoteAccess(note, userId);
 
         return NoteMapper.toResponse(note);
     }
@@ -142,10 +161,7 @@ public class NoteService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Note not found"));
 
-        workspaceService.validateWorkspaceAccess(
-                note.getWorkspaceId(),
-                userId
-        );
+        validateNoteAccess(note, userId);
 
         note.setTitle(title);
         note.setContent(content);
@@ -171,10 +187,7 @@ public class NoteService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Note not found"));
 
-        workspaceService.validateWorkspaceAccess(
-                note.getWorkspaceId(),
-                userId
-        );
+        validateNoteAccess(note, userId);
 
         note.setDeleted(true);
         note.setDeletedAt(Instant.now());
@@ -189,5 +202,16 @@ public class NoteService {
         // This method is intended for cache warming on startup
         // Implementation can be added as needed
         log.info("Preloading active workspaces into cache...");
+    }
+
+    private void validateNoteAccess(Note note, UUID userId) {
+        if (note.getWorkspaceId() == null) {
+            if (!note.getAuthorId().equals(userId)) {
+                throw new ResourceNotFoundException("Note not found");
+            }
+            return;
+        }
+
+        workspaceService.validateWorkspaceAccess(note.getWorkspaceId(), userId);
     }
 }

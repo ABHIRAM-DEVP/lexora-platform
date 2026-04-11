@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useToast } from "@/context/ToastContext";
 import { apiFetch, parseJson } from "@/lib/api";
 import { API_BASE } from "@/lib/config";
@@ -38,21 +39,6 @@ export default function WorkspaceMediaPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function downloadFile(file: MediaResponse) {
-    const res = await apiFetch(`/api/media/download/${file.id}`);
-    if (!res.ok) {
-      push("error", "Download failed");
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
   async function upload() {
     const file = inputRef.current?.files?.[0];
@@ -117,34 +103,36 @@ export default function WorkspaceMediaPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
           Latest uploads
         </h2>
-        {loading ? (
-          <p className="mt-4 text-[var(--lx-text-muted)]">Loading…</p>
-        ) : list.length === 0 ? (
-          <p className="mt-4 text-[var(--lx-text-muted)]">No files yet.</p>
-        ) : (
-          <ul className="mt-4 space-y-2 text-sm">
-            {list.map((f) => (
-              <li
-                key={f.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--lx-border)] px-3 py-2"
-              >
-                <div>
-                  <p className="font-medium text-[var(--lx-text)]">{f.fileName}</p>
-                  <p className="text-xs text-[var(--lx-text-muted)]">
-                    {f.fileType} · {(f.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="lx-btn-secondary !py-1 !text-xs"
-                  onClick={() => downloadFile(f)}
-                >
-                  Download
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        {(() => {
+          if (loading) {
+            return <p className="mt-4 text-[var(--lx-text-muted)]">Loading…</p>;
+          }
+          if (list.length === 0) {
+            return <p className="mt-4 text-[var(--lx-text-muted)]">No files yet.</p>;
+          }
+          return (
+            <ul className="mt-4 space-y-2 text-sm">
+              {list.map((f) => (
+                <li key={f.id} className="rounded-xl border border-[var(--lx-border)]">
+                  <Link
+                    href={`/dashboard/workspaces/${wid}/media/${f.id}`}
+                    className="group flex items-center justify-between gap-3 rounded-xl px-3 py-3 transition hover:bg-[var(--lx-border)]/40"
+                  >
+                    <div>
+                      <p className="font-medium text-[var(--lx-text)]">{f.fileName}</p>
+                      <p className="text-xs text-[var(--lx-text-muted)]">
+                        {f.fileType} · {(f.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <span className="rounded-2xl bg-[var(--lx-panel)] px-3 py-1 text-[11px] text-[var(--lx-text-muted)] transition group-hover:bg-[var(--lx-border)]/70">
+                      View
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
       </section>
     </div>
   );

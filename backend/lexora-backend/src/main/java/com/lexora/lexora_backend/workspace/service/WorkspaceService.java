@@ -1,5 +1,7 @@
 package com.lexora.lexora_backend.workspace.service;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -8,6 +10,7 @@ import java.util.stream.Stream;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.lexora.lexora_backend.auth.service.AuthService;
@@ -20,6 +23,7 @@ import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.user.repository.UserRepository;
 import com.lexora.lexora_backend.workspace.document.WorkspaceMember;
 import com.lexora.lexora_backend.workspace.dto.WorkspaceResponse;
+import com.lexora.lexora_backend.workspace.dto.WorkspaceMemberSummary;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
 import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
 import com.lexora.lexora_backend.workspace.events.MemberAddedEvent;
@@ -137,6 +141,7 @@ public WorkspaceResponse getWorkspaceById(User user, UUID workspaceId) {
     resp.setAccessType(ws.getAccessType());
     resp.setOwnerId(ws.getOwner().getId());
     resp.setDeleted(ws.isDeleted());
+    resp.setDeletedAt(ws.getDeletedAt());
 
     return resp;
 }
@@ -156,6 +161,7 @@ public WorkspaceResponse getWorkspaceById(User user, UUID workspaceId) {
     }
 
     workspace.setDeleted(true);
+    workspace.setDeletedAt(LocalDateTime.now());
     workspaceRepository.save(workspace);
     log.info("Workspace {} soft deleted by user {}", workspaceId, user.getId());
 }
@@ -171,6 +177,7 @@ public void restoreWorkspace(User user, UUID workspaceId) {
     }
 
     workspace.setDeleted(false);
+    workspace.setDeletedAt(null);
     workspaceRepository.save(workspace);
     log.info("Workspace {} restored by user {}", workspaceId, user.getId());
 }
@@ -336,7 +343,7 @@ workspaceMemberRepository.save(member);
 
 
 
-public Map<UUID, String> getWorkspaceMembers(UUID workspaceId, UUID requesterId) {
+public List<WorkspaceMemberSummary> getWorkspaceMembers(UUID workspaceId, UUID requesterId) {
     // Check if requester is the Postgres workspace owner first
     Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
@@ -354,20 +361,43 @@ public Map<UUID, String> getWorkspaceMembers(UUID workspaceId, UUID requesterId)
         }
     }
 
-    // Fetch all members from workspace_members
-    List<WorkspaceMember> members = workspaceMemberRepository.findAllByWorkspaceId(workspaceId);
+    Map<UUID, User> usersById = userRepository.findAllById(
+            Stream.concat(
+                    Stream.of(workspace.getOwner().getId()),
+                    workspaceMemberRepository.findAllByWorkspaceId(workspaceId).stream()
+                            .map(WorkspaceMember::getUserId))
+                    .distinct()
+                    .toList())
+            .stream()
+            .collect(Collectors.toMap(User::getId, user -> user));
 
-    // Map to UUID -> String
-    Map<UUID, String> result = members.stream()
-            .collect(Collectors.toMap(
-                    WorkspaceMember::getUserId,
-                    member -> member.getRole().name()
-            ));
+    List<WorkspaceMemberSummary> members = workspaceMemberRepository.findAllByWorkspaceId(workspaceId).stream()
+            .map(member -> {
+                User memberUser = usersById.get(member.getUserId());
+                return WorkspaceMemberSummary.builder()
+                        .id(member.getUserId())
+                        .username(memberUser != null ? memberUser.getUsername() : "Unknown user")
+                        .email(memberUser != null ? memberUser.getEmail() : null)
+                        .role(member.getRole().name())
+                        .owner(false)
+                        .build();
+            })
+            .collect(Collectors.toList());
 
-    // Always include the Postgres owner with OWNER role
-    result.putIfAbsent(workspace.getOwner().getId(), WorkspaceRole.OWNER.name());
+    User owner = workspace.getOwner();
+    members.add(WorkspaceMemberSummary.builder()
+            .id(owner.getId())
+            .username(owner.getUsername())
+            .email(owner.getEmail())
+            .role(WorkspaceRole.OWNER.name())
+            .owner(true)
+            .build());
 
-    return result;
+    return members.stream()
+            .sorted(Comparator
+                    .comparing(WorkspaceMemberSummary::isOwner).reversed()
+                    .thenComparing(WorkspaceMemberSummary::getUsername, String.CASE_INSENSITIVE_ORDER))
+            .toList();
 }
 
 // public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
@@ -427,5 +457,22 @@ public Workspace validateWorkspaceAccess(UUID workspaceId, UUID userId) {
                         role
                 )
         );
+    }
+
+    @Scheduled(cron = "0 0 * * * *")
+    public void purgeExpiredDeletedWorkspaces() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
+        List<Workspace> expired = workspaceRepository.findByDeletedTrueAndDeletedAtBefore(cutoff);
+        if (expired.isEmpty()) {
+            return;
+        }
+
+        expired.forEach(workspace -> {
+            workspaceMemberRepository.findAllByWorkspaceId(workspace.getId())
+                    .forEach(workspaceMemberRepository::delete);
+            workspaceRepository.delete(workspace);
+        });
+
+        log.info("Purged {} workspaces deleted before {}", expired.size(), cutoff);
     }
 }

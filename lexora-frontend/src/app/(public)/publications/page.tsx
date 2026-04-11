@@ -34,8 +34,7 @@ export default async function PublicationsPage() {
             Published articles from the Lexora workspace network
           </h1>
           <p className="mt-4 text-white/85">
-            Long-form content promoted from private workspaces to the public
-            shelf — discoverable, measurable, and calm to read.
+            Long-form content promoted from private workspaces to the public shelf, discoverable and calm to read.
           </p>
         </div>
       </section>
@@ -44,19 +43,29 @@ export default async function PublicationsPage() {
         {items.length === 0 && (
           <p className="text-[var(--lx-text-muted)]">No published articles yet.</p>
         )}
-        {items.map((b) => (
-          <article key={b.id} className="lx-card flex flex-col">
-            <h2 className="text-lg font-semibold text-[var(--lx-text)]">{b.title}</h2>
-            {b.publishedAt && (
+        {items.map((blog) => (
+          <article key={blog.id} className="lx-card flex h-full flex-col">
+            <h2 className="text-lg font-semibold text-[var(--lx-text)]">{blog.title}</h2>
+            {blog.publishedAt && (
               <p className="mt-1 text-xs text-[var(--lx-text-muted)]">
-                {new Date(b.publishedAt).toLocaleDateString()}
+                {new Date(blog.publishedAt).toLocaleDateString()}
               </p>
             )}
-            <p className="mt-3 line-clamp-3 flex-1 text-sm text-[var(--lx-text-muted)]">
-              {(b.content ?? "").slice(0, 180)}…
+            <p className="mt-3 flex-1 text-sm text-[var(--lx-text-muted)]">
+              {(blog.content ?? "").slice(0, 180) || "Published content is available from the article page."}
+              ...
             </p>
+            {blog.tags && blog.tags.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {blog.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="rounded-full bg-[var(--lx-primary)]/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--lx-primary)]">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
             <Link
-              href={`/blog/${b.slug}`}
+              href={`/blog/${blog.slug}`}
               className="lx-btn-primary mt-4 w-full !py-2 !text-sm"
             >
               Read article

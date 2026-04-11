@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NavButtons } from "@/components/NavButtons";
 import { useTheme } from "@/context/ThemeContext";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
@@ -11,13 +12,13 @@ import { useEffect, useRef, useState } from "react";
 function useClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000);
+    const id = globalThis.setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
   return now;
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user, logout } = useAuth();
   const { setTheme } = useTheme();
   const now = useClock();
@@ -44,13 +45,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_rgba(30,79,216,0.14),transparent_55%),radial-gradient(ellipse_at_bottom,_rgba(201,162,39,0.08),transparent_50%)]">
       <header className="sticky top-0 z-40 border-b border-[var(--lx-border)] bg-[var(--lx-panel)]/85 px-4 py-3 backdrop-blur-xl md:px-8">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--lx-text-muted)]">
-              Lexora command centre
-            </p>
-            <h1 className="text-lg font-semibold text-[var(--lx-text)]">
-              Console
-            </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <NavButtons />
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--lx-text-muted)]">
+                Lexora command centre
+              </p>
+              <h1 className="text-lg font-semibold text-[var(--lx-text)]">
+                Console
+              </h1>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

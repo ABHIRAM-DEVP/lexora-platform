@@ -48,26 +48,38 @@ public class PublicationService {
         Note note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found"));
 
-        UUID workspaceId = note.getWorkspaceId();        
-        permissionService.checkEditorAccess(workspaceId,userId);
+        UUID workspaceId = note.getWorkspaceId();
+        if (workspaceId != null) {
+            permissionService.checkEditorAccess(workspaceId, userId);
+        } else if (!note.getAuthorId().equals(userId)) {
+            throw new RuntimeException("You do not have permission to publish this personal note");
+        }
 
-        String slug = generateUniqueSlug(request.getTitle());
+        Publication publication = publicationRepository.findByNoteId(noteId)
+                .orElseGet(Publication::new);
 
-        Publication publication = Publication.builder()
-                .id(UUID.randomUUID())
-                .noteId(noteId)
-                .workspaceId(note.getWorkspaceId())
-                .title(request.getTitle())
-                .slug(slug)
-                .content(note.getContent())
-                .status(PublicationStatus.PUBLISHED)
-                .publishedAt(Instant.now())
-                .tags(request.getTags())
-                .authorId(userId)
-                .metaDescription(request.getMetaDescription())
-                .views((long) 0)
-                .build();
-publicationRepository.findBySlugAndStatus(slug, PublicationStatus.PUBLISHED);
+        if (publication.getId() == null) {
+            publication.setId(UUID.randomUUID());
+            publication.setNoteId(noteId);
+            publication.setViews(0L);
+        }
+
+        String requestedTitle = request.getTitle() == null || request.getTitle().isBlank()
+                ? note.getTitle()
+                : request.getTitle();
+
+        if (publication.getSlug() == null || !requestedTitle.equals(publication.getTitle())) {
+            publication.setSlug(generateUniqueSlug(requestedTitle));
+        }
+
+        publication.setWorkspaceId(note.getWorkspaceId());
+        publication.setTitle(requestedTitle);
+        publication.setContent(note.getContent());
+        publication.setStatus(PublicationStatus.PUBLISHED);
+        publication.setPublishedAt(Instant.now());
+        publication.setTags(request.getTags());
+        publication.setAuthorId(userId);
+        publication.setMetaDescription(request.getMetaDescription());
         publicationRepository.save(publication);
 
         searchService.index(publication);
@@ -111,7 +123,11 @@ public void update(UUID noteId, PublishRequest request, UUID userId) {
             .findByNoteId(noteId)
             .orElseThrow(() -> new RuntimeException("Publication not found"));
 
-    permissionService.checkEditorAccess(publication.getWorkspaceId(), userId);
+    if (publication.getWorkspaceId() != null) {
+        permissionService.checkEditorAccess(publication.getWorkspaceId(), userId);
+    } else if (!publication.getAuthorId().equals(userId)) {
+        throw new RuntimeException("You do not have permission to update this publication");
+    }
 
     publication.setTitle(request.getTitle());
     publication.setMetaDescription(request.getMetaDescription());
@@ -132,9 +148,13 @@ public void delete(UUID noteId, UUID userId) {
             .findByNoteId(noteId)
             .orElseThrow(() -> new RuntimeException("Not found"));
 
-    permissionService.checkOwnerAccess(
-            publication.getWorkspaceId()
-    );
+    if (publication.getWorkspaceId() != null) {
+        permissionService.checkOwnerAccess(
+                publication.getWorkspaceId()
+        );
+    } else if (!publication.getAuthorId().equals(userId)) {
+        throw new RuntimeException("You do not have permission to delete this publication");
+    }
 
     publicationRepository.delete(publication);
 

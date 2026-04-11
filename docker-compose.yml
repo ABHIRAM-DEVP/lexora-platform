@@ -47,9 +47,11 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8080
+        INTERNAL_API_URL: http://backend:8080
     container_name: lexora-frontend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
+      INTERNAL_API_URL: http://backend:8080
       PORT: 3000
     ports:
       - "3000:3000"

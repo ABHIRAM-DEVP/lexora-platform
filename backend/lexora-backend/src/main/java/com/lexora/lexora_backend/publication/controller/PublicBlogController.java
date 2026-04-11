@@ -59,7 +59,7 @@ public class PublicBlogController {
         }
 
         return publicationRepository
-                .findByStatus(
+                .findByStatusOrderByPublishedAtDesc(
                         PublicationStatus.PUBLISHED,
                         pageable);
     }

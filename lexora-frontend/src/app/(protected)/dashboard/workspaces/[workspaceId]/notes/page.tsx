@@ -5,7 +5,8 @@ import { useToast } from "@/context/ToastContext";
 import { apiFetch, parseJson } from "@/lib/api";
 import type { NoteResponse, Paged } from "@/types/api";
 import { useParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { SyntheticEvent } from "react";
 
 export default function WorkspaceNotesPage() {
   const params = useParams<{ workspaceId: string }>();
@@ -39,7 +40,7 @@ export default function WorkspaceNotesPage() {
     load();
   }, [load]);
 
-  async function create(e: FormEvent) {
+  async function create(e: SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const res = await apiFetch("/api/notes", {
@@ -96,7 +97,7 @@ export default function WorkspaceNotesPage() {
               Clear
             </button>
             <button type="submit" className="lx-btn-primary">
-              Create note
+              Write
             </button>
           </div>
         </form>
@@ -106,24 +107,28 @@ export default function WorkspaceNotesPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
           Recent notes
         </h2>
-        {loading ? (
-          <p className="mt-4 text-[var(--lx-text-muted)]">Loading…</p>
-        ) : list.length === 0 ? (
-          <p className="mt-4 text-[var(--lx-text-muted)]">No notes yet.</p>
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {list.map((n) => (
-              <li key={n.id}>
-                <Link
-                  href={`/dashboard/workspaces/${wid}/notes#${n.id}`}
-                  className="block rounded-xl border border-[var(--lx-border)] px-3 py-2 text-sm font-medium text-[var(--lx-primary)] hover:bg-[var(--lx-border)]/30"
-                >
-                  {n.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {(() => {
+          if (loading) {
+            return <p className="mt-4 text-[var(--lx-text-muted)]">Loading…</p>;
+          }
+          if (list.length === 0) {
+            return <p className="mt-4 text-[var(--lx-text-muted)]">No notes yet.</p>;
+          }
+          return (
+            <ul className="mt-4 space-y-2">
+              {list.map((n) => (
+                <li key={n.id}>
+                  <Link
+                    href={`/dashboard/workspaces/${wid}/notes/${n.id}`}
+                    className="block rounded-xl border border-[var(--lx-border)] px-3 py-2 text-sm font-medium text-[var(--lx-primary)] hover:bg-[var(--lx-border)]/30"
+                  >
+                    {n.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
       </section>
     </div>
   );

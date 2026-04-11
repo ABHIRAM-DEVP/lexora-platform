@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowTopRightOnSquareIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  PhotoIcon,
+  TrashIcon,
+  UserPlusIcon,
+} from "@heroicons/react/24/outline";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { apiFetch, parseJson } from "@/lib/api";
-import type { ActivityLog, MediaResponse, NoteResponse, WorkspaceResponse } from "@/types/api";
-import {
-  DocumentTextIcon,
-  PhotoIcon,
-  UserPlusIcon,
-  Cog6ToothIcon,
-  ClockIcon,
-} from "@heroicons/react/24/outline";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { getWorkspaceStyle, type WorkspaceStyle } from "@/lib/workspace-style";
+import type {
+  ActivityLog,
+  MediaResponse,
+  NoteResponse,
+  WorkspaceMemberSummary,
+  WorkspaceResponse,
+} from "@/types/api";
 import { AddMemberModal } from "./AddMemberModal";
 
 type FeedItem =
@@ -20,13 +28,27 @@ type FeedItem =
   | { kind: "media"; at: string; media: MediaResponse }
   | { kind: "activity"; at: string; log: ActivityLog };
 
-function shortId(id: string) {
-  return id.replaceAll("-", "").slice(-6).toUpperCase();
-}
-
 type WorkspaceOverviewDashboardProps = {
   readonly workspaceId: string;
 };
+
+function normalizeMembers(payload: unknown): WorkspaceMemberSummary[] {
+  if (Array.isArray(payload)) {
+    return payload.filter(Boolean) as WorkspaceMemberSummary[];
+  }
+
+  if (payload && typeof payload === "object") {
+    return Object.entries(payload as Record<string, string>).map(([id, role]) => ({
+      id,
+      username: `User ${id.slice(0, 8)}`,
+      email: null,
+      role,
+      owner: role === "OWNER",
+    }));
+  }
+
+  return [];
+}
 
 export function WorkspaceOverviewDashboard({
   workspaceId,
@@ -34,7 +56,8 @@ export function WorkspaceOverviewDashboard({
   const { user } = useAuth();
   const { push } = useToast();
   const [ws, setWs] = useState<WorkspaceResponse | null>(null);
-  const [members, setMembers] = useState<Record<string, string>>({});
+  const [workspaceStyle, setWorkspaceStyle] = useState<WorkspaceStyle | null>(null);
+  const [members, setMembers] = useState<WorkspaceMemberSummary[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,49 +67,58 @@ export function WorkspaceOverviewDashboard({
     try {
       const wsRes = await apiFetch(`/api/workspaces/${workspaceId}`);
       if (!wsRes.ok) throw new Error("Workspace not found");
-      const w = (await wsRes.json()) as WorkspaceResponse;
-      setWs(w);
+      const workspace = (await wsRes.json()) as WorkspaceResponse;
+      setWs(workspace);
+      setWorkspaceStyle(getWorkspaceStyle(workspaceId) ?? null);
 
-      const mRes = await apiFetch(`/api/workspaces/${workspaceId}/members`);
-      if (mRes.ok) {
-        const map = (await mRes.json()) as Record<string, string>;
-        setMembers(map ?? {});
+      const membersRes = await apiFetch(`/api/workspaces/${workspaceId}/members`);
+      if (membersRes.ok) {
+        const membersPayload = await membersRes.json();
+        setMembers(normalizeMembers(membersPayload));
+      } else {
+        setMembers([]);
       }
 
-      const [notesRes, mediaRes, actRes] = await Promise.all([
+      const [notesRes, mediaRes, activityRes] = await Promise.all([
         apiFetch(`/api/notes/list/${workspaceId}?page=0&size=10`),
         apiFetch(`/api/media/list/${workspaceId}?page=0&size=10`),
         apiFetch(`/api/activity/workspace/${workspaceId}?page=0&size=20`),
       ]);
 
       const merged: FeedItem[] = [];
+
       if (notesRes.ok) {
-        const p = await notesRes.json();
-        const notes = (p.content ?? []) as NoteResponse[];
-        notes.forEach((note) =>
+        const notesPage = await notesRes.json();
+        const notes = (notesPage.content ?? []) as NoteResponse[];
+        notes.forEach((note) => {
           merged.push({
             kind: "note",
             at: note.updatedAt ?? note.createdAt,
             note,
-          }),
-        );
+          });
+        });
       }
+
       if (mediaRes.ok) {
-        const p = await mediaRes.json();
-        const files = (p.content ?? []) as MediaResponse[];
-        files.forEach((media) =>
+        const mediaPage = await mediaRes.json();
+        const files = (mediaPage.content ?? []) as MediaResponse[];
+        files.forEach((media) => {
           merged.push({
             kind: "media",
             at: media.updatedAt ?? media.createdAt ?? new Date().toISOString(),
             media,
-          }),
-        );
+          });
+        });
       }
-      if (actRes.ok) {
-        const logs = (await actRes.json()) as ActivityLog[];
-        logs.forEach((log) =>
-          merged.push({ kind: "activity", at: log.timestamp, log }),
-        );
+
+      if (activityRes.ok) {
+        const activityPayload = await activityRes.json();
+        const logs = Array.isArray(activityPayload)
+          ? (activityPayload as ActivityLog[])
+          : ((activityPayload?.content ?? []) as ActivityLog[]);
+        logs.forEach((log) => {
+          merged.push({ kind: "activity", at: log.timestamp, log });
+        });
       }
 
       merged.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -99,13 +131,15 @@ export function WorkspaceOverviewDashboard({
   }, [workspaceId, push]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const isOwner = ws?.ownerId === user?.id;
-  const canManage = isOwner || members[user?.id ?? ""] === "ADMIN";
-
-  const memberEntries = useMemo(() => Object.entries(members), [members]);
+  const currentMember = useMemo(
+    () => members.find((member) => member.id === user?.id),
+    [members, user?.id],
+  );
+  const canManage = isOwner || currentMember?.role === "ADMIN";
 
   const changeRole = async (memberId: string, role: string) => {
     const res = await apiFetch(`/api/workspaces/${workspaceId}/role`, {
@@ -119,64 +153,83 @@ export function WorkspaceOverviewDashboard({
       return;
     }
     push("success", "Role updated");
-    load();
+    void load();
   };
 
   const removeMember = async (memberId: string) => {
-    const res = await apiFetch(
-      `/api/workspaces/${workspaceId}/members/${memberId}`,
-      { method: "DELETE" },
-    );
+    const res = await apiFetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
+      method: "DELETE",
+    });
     if (!res.ok) {
       const err = await parseJson<{ error?: string }>(res);
-      push("error", err?.error ?? "Could not remove");
+      push("error", err?.error ?? "Could not remove member");
       return;
     }
     push("success", "Member removed");
-    load();
+    void load();
   };
 
   if (loading || !ws) {
-    return <p className="text-[var(--lx-text-muted)]">Loading…</p>;
+    return <p className="text-[var(--lx-text-muted)]">Loading...</p>;
   }
+
+  const accent = workspaceStyle?.color ?? "from-sky-500 to-indigo-600";
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--lx-text)]">{ws.name}</h1>
-          <p className="mt-2 max-w-2xl text-[var(--lx-text-muted)]">{ws.description}</p>
-          <span className="mt-3 inline-flex rounded-full bg-[var(--lx-primary)]/15 px-3 py-1 text-xs font-medium text-[var(--lx-primary)]">
-            {ws.accessType} access
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/dashboard/workspaces/${workspaceId}/notes`}
-            className="lx-btn-primary"
-          >
-            Create Note
-          </Link>
-          <Link
-            href={`/dashboard/workspaces/${workspaceId}/media`}
-            className="lx-btn-secondary"
-          >
-            Upload Media
-          </Link>
-          {canManage && (
-            <button
-              type="button"
-              className="lx-btn-secondary"
-              onClick={() => setShowAdd(true)}
-            >
-              <UserPlusIcon className="h-4 w-4" />
-              Add Member
-            </button>
-          )}
-          <Link href="/dashboard/workspaces" className="lx-btn-secondary">
-            <Cog6ToothIcon className="h-4 w-4" />
-            Settings
-          </Link>
+      <div className={`overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br ${accent} shadow-[0_24px_80px_-40px_rgba(15,23,42,0.75)]`}>
+        <div className="bg-slate-950/10 p-6 backdrop-blur-[2px] md:p-8">
+          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                Workspace overview
+              </p>
+              <h1 className="mt-3 text-3xl font-semibold text-white">{ws.name}</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85">
+                {ws.description || "This workspace is ready for notes, media, and publishing activity."}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
+                  {isOwner ? "Owner workspace" : "Shared workspace"}
+                </span>
+                <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
+                  {ws.accessType} access
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/dashboard/workspaces/${workspaceId}/notes`}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-white/90"
+              >
+                Write
+              </Link>
+              <Link
+                href={`/dashboard/workspaces/${workspaceId}/media`}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
+              >
+                Upload media
+              </Link>
+              {canManage && (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
+                  onClick={() => setShowAdd(true)}
+                >
+                  <UserPlusIcon className="h-4 w-4" />
+                  Add member
+                </button>
+              )}
+              <Link
+                href="/dashboard/workspaces"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
+              >
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                All workspaces
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -186,7 +239,7 @@ export function WorkspaceOverviewDashboard({
         onClose={() => setShowAdd(false)}
         onAdded={() => {
           setShowAdd(false);
-          load();
+          void load();
           push("success", "Member added");
         }}
       />
@@ -201,6 +254,7 @@ export function WorkspaceOverviewDashboard({
               No notes, files, or activity yet.
             </div>
           )}
+
           {feed.map((item, idx) => {
             let iconElement = <ClockIcon className="h-4 w-4 text-white" />;
             let bg = "from-violet-600 to-fuchsia-600";
@@ -212,14 +266,14 @@ export function WorkspaceOverviewDashboard({
               iconElement = <DocumentTextIcon className="h-4 w-4 text-white" />;
               bg = "from-blue-600 to-indigo-600";
               title = "View note";
-              href = `/dashboard/workspaces/${workspaceId}/notes#${item.note.id}`;
+              href = `/dashboard/workspaces/${workspaceId}/notes/${item.note.id}`;
               actionLabel = "Open note";
             } else if (item.kind === "media") {
               iconElement = <PhotoIcon className="h-4 w-4 text-white" />;
               bg = "from-amber-500 to-orange-600";
               title = "View media";
-              href = `/dashboard/workspaces/${workspaceId}/media`;
-              actionLabel = "Open media library";
+              href = `/dashboard/workspaces/${workspaceId}/media/${item.media.id}`;
+              actionLabel = "Open media";
             }
 
             return (
@@ -230,44 +284,37 @@ export function WorkspaceOverviewDashboard({
                 title={title}
               >
                 <div className="lx-card flex gap-4 !py-4 transition hover:ring-1 hover:ring-[var(--lx-primary)]/20">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}
-                  >
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}>
                     {iconElement}
                   </div>
                   <div className="min-w-0 flex-1">
                     {item.kind === "note" && (
                       <>
-                        <p className="font-medium text-[var(--lx-text)]">
-                          {item.note.title}
-                        </p>
+                        <p className="font-medium text-[var(--lx-text)]">{item.note.title}</p>
                         <p className="line-clamp-2 text-sm text-[var(--lx-text-muted)]">
                           {item.note.content}
                         </p>
                       </>
                     )}
+
                     {item.kind === "media" && (
                       <>
-                        <p className="font-medium text-[var(--lx-text)]">
-                          {item.media.fileName}
-                        </p>
+                        <p className="font-medium text-[var(--lx-text)]">{item.media.fileName}</p>
                         <p className="text-sm text-[var(--lx-text-muted)]">
                           {item.media.fileType} · {(item.media.size / 1024).toFixed(1)} KB
                         </p>
                       </>
                     )}
+
                     {item.kind === "activity" && (
                       <>
-                        <p className="font-medium text-[var(--lx-text)]">
-                          {item.log.action}
-                        </p>
+                        <p className="font-medium text-[var(--lx-text)]">{item.log.action}</p>
                         {item.log.entityType && (
-                          <p className="text-sm text-[var(--lx-text-muted)]">
-                            {item.log.entityType}
-                          </p>
+                          <p className="text-sm text-[var(--lx-text-muted)]">{item.log.entityType}</p>
                         )}
                       </>
                     )}
+
                     <p className="mt-2 text-xs text-[var(--lx-text-muted)]">
                       {new Date(item.at).toLocaleString()}
                     </p>
@@ -286,46 +333,56 @@ export function WorkspaceOverviewDashboard({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
           Team members
         </h2>
-        <div className="mt-3 space-y-2">
-          {memberEntries.map(([uid, role]) => {
-            const initial = shortId(uid).slice(0, 2);
+        <div className="mt-3 space-y-3">
+          {members.map((member) => {
+            const initial = (member.username || "U").slice(0, 2).toUpperCase();
+
             return (
-              <div
-                key={uid}
-                className="lx-card flex flex-wrap items-center gap-3 !py-3"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--lx-border)] text-xs font-bold text-[var(--lx-text)]">
+              <div key={member.id} className="lx-card flex flex-wrap items-center gap-4 !py-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--lx-border)] text-xs font-bold text-[var(--lx-text)]">
                   {initial}
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[var(--lx-text)]">
-                    User ···{shortId(uid)}
+                  <p className="truncate text-sm font-semibold text-[var(--lx-text)]">
+                    {member.username}
                   </p>
-                  <p className="text-xs text-[var(--lx-text-muted)]">ID hidden in UI</p>
+                  <p className="truncate text-xs text-[var(--lx-text-muted)]">
+                    {member.email ?? "Email not available"}
+                  </p>
                 </div>
+
                 <span className="rounded-full bg-[var(--lx-gold)]/20 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:text-amber-100">
-                  {role}
+                  {member.role}
                 </span>
-                {canManage && uid !== ws.ownerId && role !== "OWNER" && (
+
+                {member.owner && (
+                  <span className="rounded-full bg-[var(--lx-primary)]/10 px-2 py-0.5 text-xs font-semibold text-[var(--lx-primary)]">
+                    Owner
+                  </span>
+                )}
+
+                {canManage && !member.owner && member.role !== "OWNER" && (
                   <>
                     <select
-                      className="lx-input !w-auto !py-1 !text-xs"
-                      value={role}
-                      onChange={(e) => changeRole(uid, e.target.value)}
+                      className="lx-input !w-auto !py-2 !text-xs"
+                      value={member.role}
+                      onChange={(e) => void changeRole(member.id, e.target.value)}
                     >
-                      {["OWNER", "ADMIN", "EDITOR", "VIEWER", "MEMBER"].map((r) => (
-                        <option key={r} value={r}>
-                          {r}
+                      {["ADMIN", "MEMBER", "EDITOR", "VIEWER"].map((role) => (
+                        <option key={role} value={role}>
+                          {role}
                         </option>
                       ))}
                     </select>
                     <button
                       type="button"
-                      className="text-red-500 hover:text-red-400"
+                      className="inline-flex items-center gap-1 rounded-xl border border-red-500/25 px-3 py-2 text-sm font-medium text-red-500 transition hover:bg-red-500/10 hover:text-red-400"
                       aria-label="Remove member"
-                      onClick={() => removeMember(uid)}
+                      onClick={() => void removeMember(member.id)}
                     >
-                      🗑
+                      <TrashIcon className="h-4 w-4" />
+                      Remove
                     </button>
                   </>
                 )}

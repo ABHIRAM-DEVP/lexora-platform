@@ -22,6 +22,7 @@ import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.workspace.dto.AddMemberRequest;
 import com.lexora.lexora_backend.workspace.dto.ChangeRoleRequest;
 import com.lexora.lexora_backend.workspace.dto.CreateWorkspaceRequest;
+import com.lexora.lexora_backend.workspace.dto.WorkspaceMemberSummary;
 import com.lexora.lexora_backend.workspace.dto.WorkspaceResponse;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
 import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
@@ -252,18 +253,19 @@ public ResponseEntity<?> addMember(
         resp.setAccessType(ws.getAccessType());
         resp.setOwnerId(ws.getOwner().getId());
         resp.setDeleted(ws.isDeleted());
+        resp.setDeletedAt(ws.getDeletedAt());
         return resp;
     }
 
     // GET /api/workspaces/{workspaceId}/members
     @GetMapping("/{workspaceId}/members")
-    public ResponseEntity<Map<UUID, String>> getWorkspaceMembers(
+    public ResponseEntity<List<WorkspaceMemberSummary>> getWorkspaceMembers(
             @PathVariable UUID workspaceId) {
 
         // Get current logged-in user
         User currentUser = authService.getCurrentUser(); // or from AuthService
 
-        Map<UUID, String> members = workspaceService.getWorkspaceMembers(workspaceId, currentUser.getId());
+        List<WorkspaceMemberSummary> members = workspaceService.getWorkspaceMembers(workspaceId, currentUser.getId());
 
         return ResponseEntity.ok(members);
     }

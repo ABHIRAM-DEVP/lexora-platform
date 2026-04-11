@@ -5,13 +5,22 @@ export type WorkspaceResponse = {
   accessType: string;
   ownerId: string;
   deleted: boolean;
+  deletedAt?: string | null;
+};
+
+export type WorkspaceMemberSummary = {
+  id: string;
+  username: string;
+  email: string | null;
+  role: string;
+  owner: boolean;
 };
 
 export type NoteResponse = {
   id: string;
   title: string;
   content: string;
-  workspaceId: string;
+  workspaceId: string | null;
   ownerId: string;
   createdAt: string;
   updatedAt: string;

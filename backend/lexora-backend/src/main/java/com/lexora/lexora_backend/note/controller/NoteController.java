@@ -98,6 +98,26 @@ public class NoteController {
         }
     }
 
+    @GetMapping("/personal")
+    public ResponseEntity<?> listPersonalNotes(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        try {
+            UUID userId = authService.getCurrentUser().getId();
+            Pageable pageable = PageRequest.of(page, size);
+
+            PagedResponse<NoteResponse> response =
+                    noteService.listPersonalNotes(userId, pageable);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error listing personal notes: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(ERROR_KEY, "Failed to list personal notes", DETAILS_KEY, e.getMessage()));
+        }
+    }
+
     // 📄 Get single note
     @GetMapping("/{noteId}")
     public ResponseEntity<?> getNote(

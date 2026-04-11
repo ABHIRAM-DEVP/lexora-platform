@@ -1,5 +1,6 @@
 package com.lexora.lexora_backend.workspace.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,5 +31,6 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
 
 Optional<Workspace> findByIdAndOwner_Id(UUID id, UUID ownerId);
 
+List<Workspace> findByDeletedTrueAndDeletedAtBefore(LocalDateTime cutoff);
 
 }
