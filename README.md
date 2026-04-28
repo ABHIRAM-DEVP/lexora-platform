@@ -9,7 +9,7 @@ Lexora is a high-performance, enterprise-grade collaborative platform designed f
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Features: 
 
 ### 🏢 Intelligent Workspaces
 - **Multi-Tenant Architecture**: Robust isolation between personal and team workspaces.
