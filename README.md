@@ -133,12 +133,6 @@ Users start by creating or joining a **Workspace**. Workspaces act as isolated e
 
 ---
 
-## 📈 Impact & Statistics (Resume Ready)
-
-**ATS Score: 100/100 | Keywords: Microservices, Distributed Systems, Polyglot Persistence, Real-time Sync**
-
-> [!TIP]
-> Use these lines for your resume to demonstrate high-level technical ownership and measurable impact.
 
 - **Real-Time Performance**: Engineered a collaborative editing engine using **Socket.io** and **Node.js Sidecar**, achieving **< 50ms latency** for concurrent users.
 - **Distributed Scalability**: Implemented **Apache Kafka** for asynchronous event streaming, decoupling activity logging from core logic and increasing write throughput by **40%**.
