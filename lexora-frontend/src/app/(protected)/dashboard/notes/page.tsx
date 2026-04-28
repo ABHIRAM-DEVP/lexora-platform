@@ -9,7 +9,7 @@ import { fetchActiveWorkspaces } from "@/lib/workspace-api";
 import type { NoteResponse, Paged, WorkspaceResponse, MediaResponse } from "@/types/api";
 import { useAuth } from "@/context/AuthContext";
 import { io, Socket } from "socket.io-client";
-import { SOCKET_URL } from "@/lib/config";
+import { SOCKET_URL, CLIENT_API_BASE } from "@/lib/config";
 import StyleToolbox, { StyleState } from "@/components/StyleToolbox";
 
 type NoteHistoryEntry = {
@@ -48,6 +48,10 @@ export default function ContentNotesPage() {
     fontFamily: 'Inter',
     mediaLayout: 'grid',
   });
+
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
 
   const updateStyle = (updates: Partial<StyleState>) => {
     setStyle(prev => ({ ...prev, ...updates }));
@@ -90,7 +94,17 @@ export default function ContentNotesPage() {
     }
   }, [selectedNote]);
 
-  // WebSocket Collaboration Setup
+  useEffect(() => {
+    if (!currentUser || !socketRef.current) return;
+    
+    if (selectedNoteId) {
+       socketRef.current.emit("activity", {
+         roomId: "content-lab",
+         user: currentUser.username,
+         action: `is now editing: ${selectedNote?.title || 'a note'}`
+       });
+    }
+  }, [selectedNoteId, currentUser]);
   useEffect(() => {
     if (!currentUser) return;
 
@@ -113,10 +127,69 @@ export default function ContentNotesPage() {
       setActiveUsers(users);
     });
 
+    socket.on("content-update", (data: { noteId: string, title: string, content: string, senderId: string }) => {
+      if (data.senderId === currentUser.id) return;
+      
+      // Update inventory to show latest title/preview
+      setInventory(prev => prev.map(n => n.id === data.noteId ? { ...n, title: data.title, content: data.content } : n));
+      
+      // If we are currently editing this note, update our local edit state
+      if (selectedNoteId === data.noteId) {
+        setEditTitle(data.title);
+        setEditBody(data.content);
+      }
+    });
+
+    socket.on("activity-broadcast", (data: { user: string, action: string }) => {
+       push("success", `${data.user} ${data.action}`);
+    });
+
     return () => {
       socket.disconnect();
     };
   }, [currentUser]);
+
+  async function uploadMedia() {
+    if (mediaFiles.length === 0) return;
+    const isPersonalMode = wsId === "NO_WORKSPACE";
+    if (!wsId) return;
+
+    setUploadingMedia(true);
+    setMediaUploadError(null);
+
+    try {
+      const uploadPromises = mediaFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        if (!isPersonalMode) {
+          formData.append("workspaceId", wsId);
+        }
+
+        const res = await apiFetch("/api/media/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await parseJson<{ error?: string }>(res);
+          throw new Error(err?.error ?? `Upload failed for ${file.name}`);
+        }
+        
+        const data = (await res.json()) as { fileId: string };
+        return data.fileId;
+      });
+
+      const newFileIds = await Promise.all(uploadPromises);
+      setSelectedMediaIds((prev) => [...prev, ...newFileIds]);
+      push("success", `Uploaded ${newFileIds.length} files`);
+      setMediaFiles([]);
+      await reload();
+    } catch (error) {
+      setMediaUploadError((error as Error).message);
+    } finally {
+      setUploadingMedia(false);
+    }
+  }
 
   const loadInventory = useCallback(async () => {
     if (!wsId) {
@@ -150,9 +223,24 @@ export default function ContentNotesPage() {
     }
   }, [push, wsId]);
 
+  const reload = useCallback(async () => {
+    await loadInventory();
+    if (wsId) {
+      const isPersonalMode = wsId === "NO_WORKSPACE";
+      const mediaUrl = isPersonalMode 
+        ? "/api/media/list/personal?page=0&size=50"
+        : `/api/media/list/${wsId}?page=0&size=50`;
+      const res = await apiFetch(mediaUrl);
+      if (res.ok) {
+        const page = await res.json();
+        setMediaPick(page.content ?? []);
+      }
+    }
+  }, [wsId, loadInventory]);
+
   useEffect(() => {
-    void loadInventory();
-  }, [loadInventory]);
+    void reload();
+  }, [reload]);
 
   async function submitNote(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -222,15 +310,13 @@ export default function ContentNotesPage() {
     void loadInventory();
   }
 
-  function openNoteEditor(note: NoteResponse) {
-    setSelectedNoteId(note.id);
-  }
+
 
   function clearSelection() {
     setSelectedNoteId(null);
   }
 
-  const noteHistory = selectedNote ? noteHistoryMap[selectedNote.id] ?? [] : [];
+
 
   return (
     <div className="space-y-8">
@@ -358,7 +444,23 @@ export default function ContentNotesPage() {
                 className="lx-input"
                 placeholder="Title"
                 value={selectedNote ? editTitle : title}
-                onChange={(e) => (selectedNote ? setEditTitle(e.target.value) : setTitle(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (selectedNote) {
+                    setEditTitle(val);
+                    socketRef.current?.emit("content-change", {
+                      roomId: "content-lab",
+                      content: {
+                        noteId: selectedNote.id,
+                        title: val,
+                        content: editBody,
+                        senderId: currentUser?.id
+                      }
+                    });
+                  } else {
+                    setTitle(val);
+                  }
+                }}
                 required
               />
               <textarea
@@ -366,7 +468,23 @@ export default function ContentNotesPage() {
                 placeholder="Write your note content here"
                 style={{ color: style.textColor, backgroundColor: style.bgColor }}
                 value={selectedNote ? editBody : body}
-                onChange={(e) => (selectedNote ? setEditBody(e.target.value) : setBody(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (selectedNote) {
+                    setEditBody(val);
+                    socketRef.current?.emit("content-change", {
+                      roomId: "content-lab",
+                      content: {
+                        noteId: selectedNote.id,
+                        title: editTitle,
+                        content: val,
+                        senderId: currentUser?.id
+                      }
+                    });
+                  } else {
+                    setBody(val);
+                  }
+                }}
                 required
               />
 
@@ -389,16 +507,90 @@ export default function ContentNotesPage() {
         </div>
 
         <aside className="space-y-6">
+          {/* Media Library Section */}
+          <section className="lx-card space-y-6 border-2 border-[var(--lx-primary)]/20">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
+                Media Library
+              </h2>
+              <p className="mt-1 text-xs text-[var(--lx-text-muted)]">
+                Upload and link assets to your notes.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3">
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  id="notes-media-upload"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setMediaFiles(Array.from(e.target.files));
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="notes-media-upload"
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--lx-border)] bg-black/5 p-6 transition-all hover:bg-black/10 cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-[var(--lx-primary)] uppercase tracking-widest">Select Files</span>
+                  <span className="text-[10px] text-[var(--lx-text-muted)]">{mediaFiles.length} files staged</span>
+                </label>
+
+                {mediaFiles.length > 0 && (
+                  <button
+                    onClick={uploadMedia}
+                    disabled={uploadingMedia}
+                    className="lx-btn-primary w-full text-xs"
+                  >
+                    {uploadingMedia ? "Uploading..." : `Upload ${mediaFiles.length} files`}
+                  </button>
+                )}
+
+                {mediaUploadError && (
+                  <p className="text-[10px] text-red-500 font-bold">{mediaUploadError}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                {mediaPick.map((m) => {
+                  const isSelected = selectedMediaIds.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedMediaIds(prev => prev.filter(id => id !== m.id));
+                        } else {
+                          setSelectedMediaIds(prev => [...prev, m.id]);
+                        }
+                      }}
+                      className={`relative aspect-square overflow-hidden rounded-xl border-2 transition-all ${
+                        isSelected ? "border-[var(--lx-primary)] opacity-100" : "border-transparent opacity-60 grayscale hover:grayscale-0 hover:opacity-100"
+                      }`}
+                    >
+                      {m.fileType.startsWith("image/") ? (
+                        <img src={`${CLIENT_API_BASE}/api/media/view/${m.id}`} alt={m.fileName} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-[var(--lx-border)]">
+                          <span className="text-[10px] font-bold uppercase tracking-tighter">{m.fileType.split("/")[1]}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
           <section className="lx-card space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
-                  Content inventory
-                </h2>
-                <p className="mt-1 text-xs text-[var(--lx-text-muted)]">
-                  Select any note to edit it inline without popups.
-                </p>
-              </div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
+                Content inventory
+              </h2>
               <button
                 type="button"
                 className="text-xs font-medium text-[var(--lx-primary)]"
@@ -416,7 +608,7 @@ export default function ContentNotesPage() {
                   <button
                     key={note.id}
                     type="button"
-                    onClick={() => openNoteEditor(note)}
+                    onClick={() => setSelectedNoteId(note.id)}
                     className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                       selectedNoteId === note.id ? "border-[var(--lx-primary)] bg-[var(--lx-primary)]/10" : "border-[var(--lx-border)] bg-[var(--lx-panel-solid)] hover:border-[var(--lx-primary)]/40"
                     }`}
@@ -450,12 +642,12 @@ export default function ContentNotesPage() {
                 Activity timeline
               </h2>
               <div className="space-y-3 max-h-[320px] overflow-y-auto">
-                {noteHistory.length === 0 ? (
+                {noteHistoryMap[selectedNote.id]?.length === 0 ? (
                   <div className="rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-panel-solid)] p-4 text-sm text-[var(--lx-text-muted)]">
                     No edits yet. Save changes to build a timeline.
                   </div>
                 ) : (
-                  noteHistory.map((entry) => (
+                  (noteHistoryMap[selectedNote.id] ?? []).map((entry) => (
                     <div key={entry.at} className="rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-panel-solid)] p-4">
                       <p className="text-sm font-medium text-[var(--lx-text)]">{entry.summary}</p>
                       <p className="mt-2 text-xs text-[var(--lx-text-muted)]">{new Date(entry.at).toLocaleString()}</p>

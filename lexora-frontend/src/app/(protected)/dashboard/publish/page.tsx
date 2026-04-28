@@ -287,7 +287,7 @@ export default function PublishStudioPage() {
       return;
     }
 
-    if (!wsId) {
+    if (!wsId && !isPersonal) {
       setMediaUploadError("Choose a workspace or personal mode first");
       return;
     }
@@ -303,7 +303,7 @@ export default function PublishStudioPage() {
           formData.append("workspaceId", wsId);
         }
 
-        const res = await fetch(`${API_BASE}/api/media/upload`, {
+        const res = await apiFetch("/api/media/upload", {
           method: "POST",
           body: formData,
         });
@@ -312,12 +312,15 @@ export default function PublishStudioPage() {
           const err = await parseJson<{ error?: string }>(res);
           throw new Error(err?.error ?? `Upload failed for ${file.name}`);
         }
-        return res;
+        
+        const data = (await res.json()) as { fileId: string };
+        return data.fileId;
       });
 
-      await Promise.all(uploadPromises);
+      const newFileIds = await Promise.all(uploadPromises);
 
-      push("success", isPersonal ? "Media uploaded to your personal library" : "Media uploaded to workspace");
+      setSelectedMediaIds((prev) => [...prev, ...newFileIds]);
+      push("success", isPersonal ? `Uploaded ${newFileIds.length} files to personal library` : `Uploaded ${newFileIds.length} files to workspace`);
       setMediaFiles([]);
       await reload();
     } catch (error) {

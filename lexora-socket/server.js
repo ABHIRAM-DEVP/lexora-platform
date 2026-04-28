@@ -55,6 +55,10 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('content-update', content);
   });
 
+  socket.on('activity', ({ roomId, user, action }) => {
+    socket.to(roomId).emit('activity-broadcast', { user, action });
+  });
+
   socket.on('cursor-move', ({ roomId, user, position }) => {
     socket.to(roomId).emit('cursor-update', { user, position });
   });

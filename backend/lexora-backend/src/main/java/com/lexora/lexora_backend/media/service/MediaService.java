@@ -52,7 +52,7 @@ public class MediaService {
     @Value("${storage.localPath}")
     private String storagePath;
 
-    private static final long MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final long MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
     private final Tika tika = new Tika();
 
@@ -70,7 +70,7 @@ public class MediaService {
         String detectedType = tika.detect(file.getInputStream());
         // Allow images, PDFs, common document formats, video, audio, and text
         boolean allowed = detectedType.startsWith("image/")
-                || detectedType.equals("application/pdf")
+                || detectedType.contains("pdf")
                 || detectedType.startsWith("text/")
                 || detectedType.startsWith("video/")
                 || detectedType.startsWith("audio/")
@@ -78,11 +78,12 @@ public class MediaService {
                 || detectedType.contains("word")
                 || detectedType.contains("presentation")
                 || detectedType.contains("zip")
-                || detectedType.equals("application/octet-stream");
+                || detectedType.equals("application/octet-stream")
+                || detectedType.equals("application/x-pdf");
         if (!allowed)
             throw new InvalidFileTypeException("Unsupported file type: " + detectedType);
 
-        if (file.getSize() > MAX_SIZE) throw new FileSizeExceededException("File exceeds 10MB");
+        if (file.getSize() > MAX_SIZE) throw new FileSizeExceededException("File exceeds 50MB");
 
         if (request.getWorkspaceId() != null) {
             validateRole(request.getWorkspaceId(), userId, "OWNER", "ADMIN", "MEMBER");
