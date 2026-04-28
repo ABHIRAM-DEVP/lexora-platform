@@ -2,6 +2,7 @@ package com.lexora.lexora_backend.publication.service;
 
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -36,14 +37,8 @@ public class PublicationService {
     private final ActivityService auditLogService;
     private final MongoTemplate mongoTemplate;
 
-    public String generateSlug(String title) {
-        return title.toLowerCase()
-                .replaceAll("[^a-z0-9\s]", "")
-                .replaceAll("\s+", "-");
-    }
-
     @Transactional
-    public void publish(UUID noteId, PublishRequest request, UUID userId) {
+    public Publication publish(UUID noteId, PublishRequest request, UUID userId) {
 
         Note note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found"));
@@ -69,7 +64,7 @@ public class PublicationService {
                 : request.getTitle();
 
         if (publication.getSlug() == null || !requestedTitle.equals(publication.getTitle())) {
-            publication.setSlug(generateUniqueSlug(requestedTitle));
+            publication.setSlug(buildSlug(requestedTitle));
         }
 
         publication.setWorkspaceId(note.getWorkspaceId());
@@ -80,13 +75,49 @@ public class PublicationService {
         publication.setTags(request.getTags());
         publication.setAuthorId(userId);
         publication.setMetaDescription(request.getMetaDescription());
-        publicationRepository.save(publication);
+        publication.setVisibility(request.getVisibility());
+        publication.setLayout(request.getLayout());
+        publication.setStyle(request.getStyle());
+        publication.setMediaIds(request.getMediaIds());
+        Publication saved = publicationRepository.save(publication);
 
-        searchService.index(publication);
+        try {
+            searchService.index(saved);
+        } catch (Exception e) {
+            // Log error but don't fail publishing
+            System.err.println("Search indexing failed: " + e.getMessage());
+        }
 
-        kafkaTemplate.send("blog-published", publication);
+        try {
+            kafkaTemplate.send("blog-published", saved);
+        } catch (Exception e) {
+            // Log error but don't fail publishing
+            System.err.println("Kafka notification failed: " + e.getMessage());
+        }
 
         auditLogService.log(userId, "PUBLISH", userId);
+        return saved;
+    }
+
+    private String buildSlug(String title) {
+        String slug = (title == null ? "" : title)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .trim()
+                .replaceAll("[\\s-]+", "-")
+                .replaceAll("^[-]+|[-]+$", "");
+
+        if (slug.isBlank()) {
+            slug = UUID.randomUUID().toString();
+        }
+
+        String uniqueSlug = slug;
+        int suffix = 1;
+        while (publicationRepository.existsBySlug(uniqueSlug)) {
+            uniqueSlug = slug + "-" + suffix++;
+        }
+
+        return uniqueSlug;
     }
 
     public void unpublish(UUID noteId) {
@@ -95,29 +126,13 @@ public class PublicationService {
                 .findByNoteId(noteId)
                 .orElseThrow(() -> new RuntimeException("Publication not found"));
 
-publication.setStatus(PublicationStatus.UNPUBLISHED);
+        publication.setStatus(PublicationStatus.UNPUBLISHED);
         publicationRepository.save(publication);
 
     }
 
-    private String generateUniqueSlug(String title) {
-
-    String baseSlug = title.toLowerCase()
-            .replaceAll("[^a-z0-9\\s]", "")
-            .replaceAll("\\s+", "-");
-
-    String slug = baseSlug;
-    int counter = 1;
-
-    while (publicationRepository.existsBySlug(slug)) {
-        slug = baseSlug + "-" + counter++;
-    }
-
-    return slug;
-}
-
-@Transactional
-public void update(UUID noteId, PublishRequest request, UUID userId) {
+    @Transactional
+    public void update(UUID noteId, PublishRequest request, UUID userId) {
 
     Publication publication = publicationRepository
             .findByNoteId(noteId)
@@ -132,6 +147,10 @@ public void update(UUID noteId, PublishRequest request, UUID userId) {
     publication.setTitle(request.getTitle());
     publication.setMetaDescription(request.getMetaDescription());
     publication.setTags(request.getTags());
+    publication.setVisibility(request.getVisibility());
+    publication.setLayout(request.getLayout());
+    publication.setStyle(request.getStyle());
+    publication.setMediaIds(request.getMediaIds());
 
     publicationRepository.save(publication);
 

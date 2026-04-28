@@ -1,0 +1,48 @@
+
+> lexora-frontend@0.1.0 build
+> next build
+
+   ▲ Next.js 15.1.0
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/16) ...
+   Generating static pages (4/16) 
+   Generating static pages (8/16) 
+   Generating static pages (12/16) 
+ ✓ Generating static pages (16/16)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                              Size     First Load JS
+┌ ○ /                                                    181 B           109 kB
+├ ○ /_not-found                                          136 B           106 kB
+├ ○ /activity                                            3.9 kB          109 kB
+├ ○ /activity/analytics                                  3.08 kB         108 kB
+├ ○ /admin                                               3.19 kB         109 kB
+├ ƒ /blog/[slug]                                         181 B           109 kB
+├ ○ /dashboard                                           4.93 kB         114 kB
+├ ○ /dashboard/notes                                     4.47 kB         110 kB
+├ ○ /dashboard/publish                                   6.89 kB         116 kB
+├ ○ /dashboard/settings                                  2.47 kB         112 kB
+├ ○ /dashboard/workspaces                                7.16 kB         116 kB
+├ ƒ /dashboard/workspaces/[workspaceId]                  7.4 kB          116 kB
+├ ƒ /dashboard/workspaces/[workspaceId]/media            2.94 kB         112 kB
+├ ƒ /dashboard/workspaces/[workspaceId]/media/[mediaId]  4.47 kB         114 kB
+├ ƒ /dashboard/workspaces/[workspaceId]/notes            2.79 kB         112 kB
+├ ƒ /dashboard/workspaces/[workspaceId]/notes/[noteId]   3.6 kB          113 kB
+├ ƒ /docs/[[...slug]]                                    181 B           109 kB
+├ ○ /login                                               2.55 kB         112 kB
+├ ○ /publications                                        1.56 kB         111 kB
+└ ○ /signup                                              2.57 kB         112 kB
++ First Load JS shared by all                            105 kB
+  ├ chunks/4bd1b696-50d6c0c2b7887fd1.js                  52.9 kB
+  ├ chunks/898-25d9d2d8c9a47245.js                       50.5 kB
+  └ other shared chunks (total)                          1.97 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

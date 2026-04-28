@@ -22,6 +22,8 @@ export type NoteResponse = {
   content: string;
   workspaceId: string | null;
   ownerId: string;
+  updatedById?: string;
+  updatedByName?: string;
   createdAt: string;
   updatedAt: string;
   deleted: boolean;
@@ -74,6 +76,8 @@ export type PublicationRow = {
   publishedAt?: string;
   tags?: string[];
   views?: number;
+  publishedByName?: string;
+  publishedByEmail?: string;
 };
 
 export type PublicBlogResponse = {
@@ -83,6 +87,22 @@ export type PublicBlogResponse = {
   tags?: string[];
   publishedAt?: string;
   views?: number;
+  publishedByName?: string;
+  publishedByEmail?: string;
+  style?: Record<string, unknown>;
+  media?: MediaResponse[];
+};
+
+export type PublishResponse = {
+  slug: string;
+  title: string;
+  content: string;
+  tags?: string[];
+  publishedAt?: string;
+  views?: number;
+  publishedByName?: string;
+  publishedByEmail?: string;
+  media?: MediaResponse[];
 };
 
 export type UserSearchResult = {

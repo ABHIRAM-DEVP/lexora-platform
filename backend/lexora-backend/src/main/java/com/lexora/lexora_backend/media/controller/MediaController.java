@@ -1,14 +1,12 @@
 package com.lexora.lexora_backend.media.controller;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,7 +14,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.lexora.lexora_backend.auth.service.AuthService;
@@ -24,7 +30,6 @@ import com.lexora.lexora_backend.common.dto.PagedResponse;
 import com.lexora.lexora_backend.common.exception.AccessDeniedException;
 import com.lexora.lexora_backend.common.exception.ForbiddenException;
 import com.lexora.lexora_backend.common.exception.MediaNotFoundException;
-import com.lexora.lexora_backend.common.exception.ResourceNotFoundException;
 import com.lexora.lexora_backend.common.util.SecurityUtils;
 import com.lexora.lexora_backend.media.document.MediaFile;
 import com.lexora.lexora_backend.media.dto.MediaResponse;
@@ -57,7 +62,7 @@ public class MediaController {
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("workspaceId") UUID workspaceId) {
+            @RequestParam(name = "workspaceId", required = false) UUID workspaceId) {
         try {
             UUID userId = authService.getCurrentUser().getId();
             UploadFileRequest request = new UploadFileRequest();
@@ -295,6 +300,26 @@ public class MediaController {
         } catch (Exception e) {
             log.error("Error generating temporary download URL for media file {}: {}", fileId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(ERROR_KEY, "Failed to generate download URL", DETAILS_KEY, e.getMessage()));
+        }
+    }
+
+    @GetMapping("/view/{fileId}")
+    public ResponseEntity<?> viewFile(@PathVariable String fileId) {
+        try {
+            InputStreamResource resource = mediaService.viewFile(fileId);
+            String contentType = mediaService.getFileTypeById(fileId);
+            MediaFile mediaFile = mediaRepository.findById(fileId).orElse(null);
+            String fileName = (mediaFile != null) ? mediaFile.getFileName() : "file";
+            
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
+                    .body(resource);
+        } catch (MediaNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            log.error("Error viewing media file {}: {}", fileId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }

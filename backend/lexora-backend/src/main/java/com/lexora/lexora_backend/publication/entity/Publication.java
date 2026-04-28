@@ -33,6 +33,10 @@ public class Publication {
     private UUID authorId;
     private String metaDescription;
     private Long views;
+    private String visibility;
+    private String layout;
+    private java.util.Map<String, Object> style;
+    private List<String> mediaIds;
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -58,4 +62,12 @@ public class Publication {
     public void setMetaDescription(String metaDescription) { this.metaDescription = metaDescription; }
     public Long getViews() { return views; }
     public void setViews(Long views) { this.views = views; }
+    public String getVisibility() { return visibility; }
+    public void setVisibility(String visibility) { this.visibility = visibility; }
+    public String getLayout() { return layout; }
+    public void setLayout(String layout) { this.layout = layout; }
+    public java.util.Map<String, Object> getStyle() { return style; }
+    public void setStyle(java.util.Map<String, Object> style) { this.style = style; }
+    public List<String> getMediaIds() { return mediaIds; }
+    public void setMediaIds(List<String> mediaIds) { this.mediaIds = mediaIds; }
 }

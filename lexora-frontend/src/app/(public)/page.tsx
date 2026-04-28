@@ -51,6 +51,9 @@ export default function LandingPage() {
             <Link href="/login" className="lx-btn-secondary">
               Sign in
             </Link>
+            <Link href="/publications" className="lx-btn-secondary">
+              Public blog shelf
+            </Link>
           </div>
         </div>
 

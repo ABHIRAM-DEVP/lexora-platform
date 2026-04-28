@@ -8,6 +8,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,16 +24,13 @@ import com.lexora.lexora_backend.user.entity.Role;
 import com.lexora.lexora_backend.user.entity.User;
 import com.lexora.lexora_backend.user.repository.UserRepository;
 import com.lexora.lexora_backend.workspace.document.WorkspaceMember;
-import com.lexora.lexora_backend.workspace.dto.WorkspaceResponse;
 import com.lexora.lexora_backend.workspace.dto.WorkspaceMemberSummary;
+import com.lexora.lexora_backend.workspace.dto.WorkspaceResponse;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
 import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
 import com.lexora.lexora_backend.workspace.events.MemberAddedEvent;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceMemberRepository;
 import com.lexora.lexora_backend.workspace.repository.WorkspaceRepository;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class WorkspaceService {
@@ -154,7 +153,9 @@ public WorkspaceResponse getWorkspaceById(User user, UUID workspaceId) {
     Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    validateOwnerOrAdmin(workspaceId, user.getId());
+    if (user.getRole() != Role.ADMIN) {
+        validateOwner(workspaceId, user.getId());
+    }
 
     if (workspace.isDeleted()) {
         throw new IllegalStateException("Workspace already deleted");
@@ -170,7 +171,7 @@ public void restoreWorkspace(User user, UUID workspaceId) {
     Workspace workspace = workspaceRepository.findById(workspaceId)
             .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
-    validateOwner(workspaceId, user.getId());
+    validateOwnerOrAdmin(workspaceId, user.getId());
 
     if (!workspace.isDeleted()) {
         throw new IllegalStateException("Workspace is not deleted");
@@ -238,15 +239,9 @@ workspaceMemberRepository.save(member);
        ============================================================ */
     @CacheEvict(value = "workspaces", allEntries = true)
     public void removeMember(UUID workspaceId, UUID performedBy, UUID targetUser) {
-        WorkspaceMember performer = workspaceMemberRepository
-                .findByWorkspaceIdAndUserId(workspaceId, performedBy)
-                .orElseThrow(() -> new AccessDeniedException("Not authorized"));
-
-        if (performer.getRole() != WorkspaceRole.OWNER) {
-            throw new AccessDeniedException("Only OWNER can remove members");
-        }
-
+        validateOwnerOrAdmin(workspaceId, performedBy);
         workspaceMemberRepository.deleteByWorkspaceIdAndUserId(workspaceId, targetUser);
+        log.info("Member {} removed from workspace {} by {}", targetUser, workspaceId, performedBy);
     }
 
     /* ============================================================
@@ -254,13 +249,7 @@ workspaceMemberRepository.save(member);
        ============================================================ */
     @CacheEvict(value = "workspaces", allEntries = true)
     public void changeUserRole(UUID workspaceId, UUID performedBy, UUID targetUser, WorkspaceRole newRole) {
-        WorkspaceMember performer = workspaceMemberRepository
-                .findByWorkspaceIdAndUserId(workspaceId, performedBy)
-                .orElseThrow(() -> new AccessDeniedException("Not authorized"));
-
-        if (performer.getRole() != WorkspaceRole.OWNER) {
-            throw new AccessDeniedException("Only OWNER can change roles");
-        }
+        validateOwnerOrAdmin(workspaceId, performedBy);
 
         WorkspaceMember target = workspaceMemberRepository
                 .findByWorkspaceIdAndUserId(workspaceId, targetUser)

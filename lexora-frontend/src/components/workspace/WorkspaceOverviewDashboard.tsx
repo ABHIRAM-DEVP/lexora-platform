@@ -14,6 +14,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { apiFetch, parseJson } from "@/lib/api";
 import { getWorkspaceStyle, type WorkspaceStyle } from "@/lib/workspace-style";
+import {
+  isWorkspaceOwnerOrAdmin,
+  workspaceRoleLabel,
+} from "@/lib/workspace-permissions";
 import type {
   ActivityLog,
   MediaResponse,
@@ -134,12 +138,12 @@ export function WorkspaceOverviewDashboard({
     void load();
   }, [load]);
 
-  const isOwner = ws?.ownerId === user?.id;
   const currentMember = useMemo(
     () => members.find((member) => member.id === user?.id),
     [members, user?.id],
   );
-  const canManage = isOwner || currentMember?.role === "ADMIN";
+  const canManage = isWorkspaceOwnerOrAdmin(user?.id, ws, currentMember);
+  const roleLabel = workspaceRoleLabel(user?.id, ws, currentMember);
 
   const changeRole = async (memberId: string, role: string) => {
     const res = await apiFetch(`/api/workspaces/${workspaceId}/role`, {
@@ -190,7 +194,7 @@ export function WorkspaceOverviewDashboard({
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
-                  {isOwner ? "Owner workspace" : "Shared workspace"}
+                  {roleLabel}
                 </span>
                 <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
                   {ws.accessType} access
@@ -244,151 +248,155 @@ export function WorkspaceOverviewDashboard({
         }}
       />
 
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
-          Timeline
-        </h2>
-        <div className="mt-3 space-y-3">
-          {feed.length === 0 && (
-            <div className="lx-card text-sm text-[var(--lx-text-muted)]">
-              No notes, files, or activity yet.
-            </div>
-          )}
-
-          {feed.map((item, idx) => {
-            let iconElement = <ClockIcon className="h-4 w-4 text-white" />;
-            let bg = "from-violet-600 to-fuchsia-600";
-            let title = "View workspace activity";
-            let href = `/dashboard/workspaces/${workspaceId}`;
-            let actionLabel = "View workspace";
-
-            if (item.kind === "note") {
-              iconElement = <DocumentTextIcon className="h-4 w-4 text-white" />;
-              bg = "from-blue-600 to-indigo-600";
-              title = "View note";
-              href = `/dashboard/workspaces/${workspaceId}/notes/${item.note.id}`;
-              actionLabel = "Open note";
-            } else if (item.kind === "media") {
-              iconElement = <PhotoIcon className="h-4 w-4 text-white" />;
-              bg = "from-amber-500 to-orange-600";
-              title = "View media";
-              href = `/dashboard/workspaces/${workspaceId}/media/${item.media.id}`;
-              actionLabel = "Open media";
-            }
-
-            return (
-              <Link
-                key={`${item.kind}-${idx}`}
-                href={href}
-                className="group block"
-                title={title}
-              >
-                <div className="lx-card flex gap-4 !py-4 transition hover:ring-1 hover:ring-[var(--lx-primary)]/20">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}>
-                    {iconElement}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {item.kind === "note" && (
-                      <>
-                        <p className="font-medium text-[var(--lx-text)]">{item.note.title}</p>
-                        <p className="line-clamp-2 text-sm text-[var(--lx-text-muted)]">
-                          {item.note.content}
-                        </p>
-                      </>
-                    )}
-
-                    {item.kind === "media" && (
-                      <>
-                        <p className="font-medium text-[var(--lx-text)]">{item.media.fileName}</p>
-                        <p className="text-sm text-[var(--lx-text-muted)]">
-                          {item.media.fileType} · {(item.media.size / 1024).toFixed(1)} KB
-                        </p>
-                      </>
-                    )}
-
-                    {item.kind === "activity" && (
-                      <>
-                        <p className="font-medium text-[var(--lx-text)]">{item.log.action}</p>
-                        {item.log.entityType && (
-                          <p className="text-sm text-[var(--lx-text-muted)]">{item.log.entityType}</p>
-                        )}
-                      </>
-                    )}
-
-                    <p className="mt-2 text-xs text-[var(--lx-text-muted)]">
-                      {new Date(item.at).toLocaleString()}
-                    </p>
-                    <p className="mt-2 text-xs font-semibold text-[var(--lx-primary)]">
-                      {actionLabel}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
-          Team members
-        </h2>
-        <div className="mt-3 space-y-3">
-          {members.map((member) => {
-            const initial = (member.username || "U").slice(0, 2).toUpperCase();
-
-            return (
-              <div key={member.id} className="lx-card flex flex-wrap items-center gap-4 !py-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--lx-border)] text-xs font-bold text-[var(--lx-text)]">
-                  {initial}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[var(--lx-text)]">
-                    {member.username}
-                  </p>
-                  <p className="truncate text-xs text-[var(--lx-text-muted)]">
-                    {member.email ?? "Email not available"}
-                  </p>
-                </div>
-
-                <span className="rounded-full bg-[var(--lx-gold)]/20 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:text-amber-100">
-                  {member.role}
-                </span>
-
-                {member.owner && (
-                  <span className="rounded-full bg-[var(--lx-primary)]/10 px-2 py-0.5 text-xs font-semibold text-[var(--lx-primary)]">
-                    Owner
-                  </span>
-                )}
-
-                {canManage && !member.owner && member.role !== "OWNER" && (
-                  <>
-                    <select
-                      className="lx-input !w-auto !py-2 !text-xs"
-                      value={member.role}
-                      onChange={(e) => void changeRole(member.id, e.target.value)}
-                    >
-                      {["ADMIN", "MEMBER", "EDITOR", "VIEWER"].map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-xl border border-red-500/25 px-3 py-2 text-sm font-medium text-red-500 transition hover:bg-red-500/10 hover:text-red-400"
-                      aria-label="Remove member"
-                      onClick={() => void removeMember(member.id)}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                      Remove
-                    </button>
-                  </>
-                )}
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr),minmax(320px,0.8fr)]">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
+            Timeline
+          </h2>
+          <div className="mt-3 space-y-3">
+            {feed.length === 0 && (
+              <div className="lx-card text-sm text-[var(--lx-text-muted)]">
+                No notes, files, or activity yet.
               </div>
-            );
-          })}
+            )}
+
+            {feed.map((item, idx) => {
+              let iconElement = <ClockIcon className="h-4 w-4 text-white" />;
+              let bg = "from-violet-600 to-fuchsia-600";
+              let title = "View workspace activity";
+              let href = `/dashboard/workspaces/${workspaceId}`;
+              let actionLabel = "View workspace";
+
+              if (item.kind === "note") {
+                iconElement = <DocumentTextIcon className="h-4 w-4 text-white" />;
+                bg = "from-blue-600 to-indigo-600";
+                title = "View note";
+                href = `/dashboard/workspaces/${workspaceId}/notes/${item.note.id}`;
+                actionLabel = "Open note";
+              } else if (item.kind === "media") {
+                iconElement = <PhotoIcon className="h-4 w-4 text-white" />;
+                bg = "from-amber-500 to-orange-600";
+                title = "View media";
+                href = `/dashboard/workspaces/${workspaceId}/media/${item.media.id}`;
+                actionLabel = "Open media";
+              }
+
+              return (
+                <Link
+                  key={`${item.kind}-${idx}`}
+                  href={href}
+                  className="group block"
+                  title={title}
+                >
+                  <div className="lx-card flex gap-4 !py-4 transition hover:ring-1 hover:ring-[var(--lx-primary)]/20">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${bg}`}>
+                      {iconElement}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {item.kind === "note" && (
+                        <>
+                          <p className="font-medium text-[var(--lx-text)]">{item.note.title}</p>
+                          <p className="line-clamp-2 text-sm text-[var(--lx-text-muted)]">
+                            {item.note.content}
+                          </p>
+                        </>
+                      )}
+
+                      {item.kind === "media" && (
+                        <>
+                          <p className="font-medium text-[var(--lx-text)]">{item.media.fileName}</p>
+                          <p className="text-sm text-[var(--lx-text-muted)]">
+                            {item.media.fileType} · {(item.media.size / 1024).toFixed(1)} KB
+                          </p>
+                        </>
+                      )}
+
+                      {item.kind === "activity" && (
+                        <>
+                          <p className="font-medium text-[var(--lx-text)]">{item.log.action}</p>
+                          {item.log.entityType && (
+                            <p className="text-sm text-[var(--lx-text-muted)]">{item.log.entityType}</p>
+                          )}
+                        </>
+                      )}
+
+                      <p className="mt-2 text-xs text-[var(--lx-text-muted)]">
+                        {new Date(item.at).toLocaleString()}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-[var(--lx-primary)]">
+                        {actionLabel}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <section>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--lx-text-muted)]">
+              Team members
+            </h2>
+            <div className="mt-3 max-h-[560px] space-y-3 overflow-y-auto pr-2">
+              {members.map((member) => {
+                const initial = (member.username || "U").slice(0, 2).toUpperCase();
+
+                return (
+                  <div key={member.id} className="lx-card flex flex-wrap items-center gap-4 !py-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--lx-border)] text-xs font-bold text-[var(--lx-text)]">
+                      {initial}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[var(--lx-text)]">
+                        {member.username}
+                      </p>
+                      <p className="truncate text-xs text-[var(--lx-text-muted)]">
+                        {member.email ?? "Email not available"}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-[var(--lx-gold)]/20 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:text-amber-100">
+                      {member.role}
+                    </span>
+
+                    {member.owner && (
+                      <span className="rounded-full bg-[var(--lx-primary)]/10 px-2 py-0.5 text-xs font-semibold text-[var(--lx-primary)]">
+                        Owner
+                      </span>
+                    )}
+
+                    {canManage && !member.owner && member.role !== "OWNER" && (
+                      <>
+                        <select
+                          className="lx-input !w-auto !py-2 !text-xs"
+                          value={member.role}
+                          onChange={(e) => void changeRole(member.id, e.target.value)}
+                        >
+                          {["ADMIN", "MEMBER", "EDITOR", "VIEWER"].map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-xl border border-red-500/25 px-3 py-2 text-sm font-medium text-red-500 transition hover:bg-red-500/10 hover:text-red-400"
+                          aria-label="Remove member"
+                          onClick={() => void removeMember(member.id)}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                          Remove
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
       </section>
     </div>

@@ -9,16 +9,20 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.lexora.lexora_backend.activity.model.ActivityLog;
+import com.lexora.lexora_backend.activity.service.ActivityService;
+import com.lexora.lexora_backend.auth.service.AuthService;
+import com.lexora.lexora_backend.user.entity.Role;
+import com.lexora.lexora_backend.user.entity.User;
+import com.lexora.lexora_backend.workspace.service.WorkspaceService;
 
 import lombok.RequiredArgsConstructor;
-
-import com.lexora.lexora_backend.activity.service.ActivityService;
-import com.lexora.lexora_backend.activity.model.ActivityLog;
-import com.lexora.lexora_backend.auth.service.AuthService;
-import com.lexora.lexora_backend.user.entity.User;
-import com.lexora.lexora_backend.user.entity.Role;
-import com.lexora.lexora_backend.workspace.enums.WorkspaceRole;
 
 @RestController
 @RequestMapping("/api/activity")
@@ -27,6 +31,7 @@ public class ActivityController {
 
     private final ActivityService activityService;
     private final AuthService authService;
+    private final WorkspaceService workspaceService;
 
     // 🔹 1. Get All Activity (Admin)
     @GetMapping
@@ -293,13 +298,10 @@ public class ActivityController {
         // If not admin, check workspace role
         if (!isAdmin && targetWorkspaceId != null) {
             try {
-                // Check if user has OWNER or ADMIN role in the workspace
-                // This would require adding a method to check workspace role
-                // For now, allow if they have access to the workspace
-                var workspace = activityService.getWorkspaceForAnalytics(targetWorkspaceId, currentUser.getId());
-                if (workspace == null) {
+                String role = workspaceService.getUserRole(targetWorkspaceId, currentUser.getId());
+                if (!role.equalsIgnoreCase("OWNER") && !role.equalsIgnoreCase("ADMIN")) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
-                        "error", "Access denied. You don't have permission to view analytics for this workspace."
+                        "error", "Access denied. Only workspace owner or admin can view analytics."
                     ));
                 }
             } catch (Exception e) {

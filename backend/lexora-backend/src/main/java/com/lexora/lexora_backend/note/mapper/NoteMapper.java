@@ -15,10 +15,17 @@ public class NoteMapper {
                 .content(note.getContent())
                 .workspaceId(note.getWorkspaceId())
                 .ownerId(note.getAuthorId())
+                .updatedById(note.getUpdatedBy())
                 .createdAt(note.getCreatedAt())
                 .updatedAt(note.getUpdatedAt())
                 .deleted(note.isDeleted())
                 .build();
+    }
+
+    public static NoteResponse toResponse(Note note, String updatedByName) {
+        NoteResponse response = toResponse(note);
+        response.setUpdatedByName(updatedByName);
+        return response;
     }
 
     /**

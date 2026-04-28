@@ -1,6 +1,5 @@
 package com.lexora.lexora_backend.publication.dto;
 
-
 import java.time.Instant;
 import java.util.List;
 import com.lexora.lexora_backend.media.dto.MediaResponse;
@@ -11,20 +10,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PublicBlogResponse {
-
-    private String title;
+@Builder
+public class PublishResponse {
+    // Slug for URL routing
     private String slug;
+    
+    // Full article data for immediate UI rendering (no second API call needed)
+    private String title;
     private String content;
     private List<String> tags;
     private Instant publishedAt;
     private Long views;
     private String publishedByName;
     private String publishedByEmail;
-    private java.util.Map<String, Object> style;
     private List<MediaResponse> media;
-
 }

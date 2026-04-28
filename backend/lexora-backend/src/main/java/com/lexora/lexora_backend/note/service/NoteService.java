@@ -2,6 +2,9 @@ package com.lexora.lexora_backend.note.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -19,6 +22,7 @@ import com.lexora.lexora_backend.note.dto.NoteResponse;
 import com.lexora.lexora_backend.note.entity.Note;
 import com.lexora.lexora_backend.note.mapper.NoteMapper;
 import com.lexora.lexora_backend.note.repository.NoteRepository;
+import com.lexora.lexora_backend.user.service.UserService;
 import com.lexora.lexora_backend.workspace.entity.Workspace;
 import com.lexora.lexora_backend.workspace.service.WorkspaceService;
 
@@ -32,6 +36,7 @@ public class NoteService {
 
     private final NoteRepository noteRepository;
     private final WorkspaceService workspaceService;
+    private final UserService userService;
 
     // ---------------------------
     // Create Note
@@ -47,7 +52,9 @@ public class NoteService {
         note.setTitle(title);
         note.setContent(content);
         note.setAuthorId(userId);
+        note.setUpdatedBy(userId);
         note.setCreatedAt(Instant.now());
+        note.setUpdatedAt(Instant.now());
         note.setDeleted(false);
 
         if (workspaceId != null) {
@@ -58,9 +65,10 @@ public class NoteService {
             note.setWorkspaceId(null);
         }
 
-        return NoteMapper.toResponse(
-                noteRepository.save(note)
-        );
+        Note savedNote = noteRepository.save(note);
+        NoteResponse response = NoteMapper.toResponse(savedNote);
+        response.setUpdatedByName(userService.getById(userId).getUsername());
+        return response;
     }
 
     // ---------------------------
@@ -90,6 +98,8 @@ public class NoteService {
                         .map(NoteMapper::toResponse)
                         .collect(Collectors.toList());
 
+        populateUpdatedByNames(content);
+
         return new PagedResponse<>(
         content,
         page.getNumber(),
@@ -108,6 +118,8 @@ public class NoteService {
                         .stream()
                         .map(NoteMapper::toResponse)
                         .collect(Collectors.toList());
+
+        populateUpdatedByNames(content);
 
         return new PagedResponse<>(
                 content,
@@ -139,7 +151,11 @@ public class NoteService {
 
         validateNoteAccess(note, userId);
 
-        return NoteMapper.toResponse(note);
+        NoteResponse response = NoteMapper.toResponse(note);
+        if (response.getUpdatedById() != null) {
+            response.setUpdatedByName(userService.getById(response.getUpdatedById()).getUsername());
+        }
+        return response;
     }
 
     // ---------------------------
@@ -166,10 +182,12 @@ public class NoteService {
         note.setTitle(title);
         note.setContent(content);
         note.setUpdatedAt(Instant.now());
+        note.setUpdatedBy(userId);
 
-        return NoteMapper.toResponse(
-                noteRepository.save(note)
-        );
+        Note savedNote = noteRepository.save(note);
+        NoteResponse response = NoteMapper.toResponse(savedNote);
+        response.setUpdatedByName(userService.getById(userId).getUsername());
+        return response;
     }
 
     // ---------------------------
@@ -193,6 +211,23 @@ public class NoteService {
         note.setDeletedAt(Instant.now());
 
         noteRepository.save(note);
+    }
+
+    private void populateUpdatedByNames(List<NoteResponse> notes) {
+        Set<UUID> editorIds = notes.stream()
+                .map(NoteResponse::getUpdatedById)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (editorIds.isEmpty()) {
+            return;
+        }
+
+        Map<UUID, String> editorNames = userService.getUsernamesByIds(editorIds);
+        notes.forEach(note -> {
+            if (note.getUpdatedById() != null) {
+                note.setUpdatedByName(editorNames.get(note.getUpdatedById()));
+            }
+        });
     }
 
     // ---------------------------

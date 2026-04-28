@@ -17,8 +17,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 @Entity
 @Table(name = "notes")
@@ -54,6 +52,7 @@ public class Note {
     private Workspace workspace;
     
     private UUID authorId;
+    private UUID updatedBy;
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -75,4 +74,6 @@ public class Note {
     public void setWorkspace(Workspace workspace) { this.workspace = workspace; }
     public UUID getAuthorId() { return authorId; }
     public void setAuthorId(UUID authorId) { this.authorId = authorId; }
+    public UUID getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(UUID updatedBy) { this.updatedBy = updatedBy; }
 }

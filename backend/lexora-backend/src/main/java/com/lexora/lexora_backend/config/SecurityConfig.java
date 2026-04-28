@@ -68,7 +68,8 @@ public class SecurityConfig {
                     "/api/auth/refresh-token",
                     "/api/auth/logout",
                     "/api/public/**",
-                    "/api/publication/ping"
+                    "/api/publication/ping",
+                    "/api/media/view/**"
                 ).permitAll()
 
                 // Admin endpoints

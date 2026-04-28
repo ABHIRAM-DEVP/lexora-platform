@@ -1,8 +1,9 @@
 package com.lexora.lexora_backend.user.service;
 
 import java.util.Comparator;
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -101,6 +102,11 @@ public class UserService {
                         .username(user.getUsername())
                         .build())
                 .orElse(null);
+    }
+
+    public Map<UUID, String> getUsernamesByIds(Set<UUID> ids) {
+        return userRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(User::getId, User::getUsername));
     }
 
 }

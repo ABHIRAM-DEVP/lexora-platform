@@ -24,6 +24,8 @@ public class NoteResponse implements Serializable {
     private String content;
     private UUID workspaceId;
     private UUID ownerId;
+    private UUID updatedById;
+    private String updatedByName;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Instant createdAt;

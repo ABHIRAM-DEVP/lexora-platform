@@ -1,0 +1,26 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< com.lexora:lexora-backend >----------------------
+[INFO] Building lexora-backend 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ lexora-backend ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ lexora-backend ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 137 source files with javac [debug release 17] to target\classes
+[WARNING] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/publication/entity/Publication.java:[23,18] @Builder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/events/model/CommentCreatedEvent.java:[8,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[INFO] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/user/entity/User.java: Some input files use or override a deprecated API.
+[INFO] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/user/entity/User.java: Recompile with -Xlint:deprecation for details.
+[INFO] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/activity/service/impl/NotificationServiceImpl.java: c:\Users\HP\Desktop\lexora-build\lexora-platform\backend\lexora-backend\src\main\java\com\lexora\lexora_backend\activity\service\impl\NotificationServiceImpl.java uses unchecked or unsafe operations.
+[INFO] /c:/Users/HP/Desktop/lexora-build/lexora-platform/backend/lexora-backend/src/main/java/com/lexora/lexora_backend/activity/service/impl/NotificationServiceImpl.java: Recompile with -Xlint:unchecked for details.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  12.383 s
+[INFO] Finished at: 2026-04-18T11:39:04+05:30
+[INFO] ------------------------------------------------------------------------

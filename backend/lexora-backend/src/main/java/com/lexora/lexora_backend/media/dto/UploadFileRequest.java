@@ -1,13 +1,12 @@
 package com.lexora.lexora_backend.media.dto;
 
-import lombok.Data;
 import java.util.UUID;
-import jakarta.validation.constraints.NotNull;
+
+import lombok.Data;
 
 @Data
 public class UploadFileRequest {
 
-    @NotNull(message = "workspaceId is required") // ✅ Validation for workspaceId
     private UUID workspaceId;
 
     public UUID getWorkspaceId() {

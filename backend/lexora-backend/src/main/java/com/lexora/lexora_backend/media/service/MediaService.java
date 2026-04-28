@@ -9,11 +9,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.core.io.InputStreamResource;
@@ -86,12 +84,16 @@ public class MediaService {
 
         if (file.getSize() > MAX_SIZE) throw new FileSizeExceededException("File exceeds 10MB");
 
-        validateRole(request.getWorkspaceId(), userId, "OWNER", "ADMIN", "MEMBER");
+        if (request.getWorkspaceId() != null) {
+            validateRole(request.getWorkspaceId(), userId, "OWNER", "ADMIN", "MEMBER");
+        }
 
         // Prepare storage path
         File rootDir = new File(storagePath);
         if (!rootDir.exists()) rootDir.mkdirs();
-        File workspaceDir = new File(rootDir, request.getWorkspaceId().toString());
+        File workspaceDir = request.getWorkspaceId() != null
+                ? new File(rootDir, request.getWorkspaceId().toString())
+                : new File(rootDir, "personal-" + userId.toString());
         if (!workspaceDir.exists()) workspaceDir.mkdirs();
 
         String storedFileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
@@ -395,6 +397,32 @@ public void permanentDelete(String fileId, UUID userId) {
             page.getTotalPages()
     );
 }
+    public List<MediaResponse> getMediaResponses(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return List.of();
+        return mediaRepository.findAllById(ids).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
 
+    public InputStreamResource viewFile(String fileId) throws IOException {
+        MediaFile mediaFile = mediaRepository.findById(fileId)
+                .orElseThrow(() -> new MediaNotFoundException("File not found"));
+        
+        if (mediaFile.isDeleted()) {
+            throw new MediaNotFoundException("File is deleted");
+        }
 
+        File file = new File(mediaFile.getStoragePath());
+        if (!file.exists()) {
+            throw new MediaNotFoundException("File not found on disk");
+        }
+
+        return new InputStreamResource(new FileInputStream(file));
+    }
+
+    public String getFileTypeById(String fileId) {
+        return mediaRepository.findById(fileId)
+                .map(MediaFile::getFileType)
+                .orElse("application/octet-stream");
+    }
 }

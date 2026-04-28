@@ -15,3 +15,5 @@ export const SERVER_API_BASE = normalizeBaseUrl(
 
 export const API_BASE =
   typeof window === "undefined" ? SERVER_API_BASE : CLIENT_API_BASE;
+
+export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
