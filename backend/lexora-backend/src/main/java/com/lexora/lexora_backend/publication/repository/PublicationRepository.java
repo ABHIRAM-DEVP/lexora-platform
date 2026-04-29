@@ -16,6 +16,8 @@ public interface PublicationRepository
 
     Optional<Publication> findByNoteId(UUID noteId);
 
+    java.util.List<Publication> findAllByNoteId(UUID noteId);
+
     boolean existsBySlug(String slug);
 
     Optional<Publication> findBySlugAndStatus(
@@ -38,4 +40,6 @@ public interface PublicationRepository
             PublicationStatus status,
             Pageable pageable
     );
+
+    Page<Publication> findByAuthorId(UUID authorId, Pageable pageable);
 }

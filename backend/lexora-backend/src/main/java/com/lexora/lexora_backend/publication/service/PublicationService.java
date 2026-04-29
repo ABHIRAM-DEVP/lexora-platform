@@ -161,41 +161,63 @@ public class PublicationService {
 
 
 @Transactional
-public void delete(UUID noteId, UUID userId) {
+public void delete(UUID noteId, UUID userId, String reason) {
 
-    Publication publication = publicationRepository
-            .findByNoteId(noteId)
-            .orElseThrow(() -> new RuntimeException("Not found"));
-
-    if (publication.getWorkspaceId() != null) {
-        permissionService.checkOwnerAccess(
-                publication.getWorkspaceId()
-        );
-    } else if (!publication.getAuthorId().equals(userId)) {
-        throw new RuntimeException("You do not have permission to delete this publication");
+    // Handle cases where multiple publications might exist for the same noteId (non-unique result fix)
+    java.util.List<Publication> publications = publicationRepository.findAllByNoteId(noteId);
+    
+    if (publications.isEmpty()) {
+        // Fallback to searching by Publication ID directly
+        publicationRepository.findById(noteId).ifPresent(publications::add);
     }
 
-    publicationRepository.delete(publication);
+    if (publications.isEmpty()) {
+        throw new RuntimeException("Publication not found with ID: " + noteId);
+    }
 
-    searchService.delete(publication.getId());
+    for (Publication publication : publications) {
+        if (publication.getWorkspaceId() != null) {
+            permissionService.checkEditorAccess(
+                    publication.getWorkspaceId(),
+                    userId
+            );
+        } else if (!publication.getAuthorId().equals(userId)) {
+            throw new RuntimeException("You do not have permission to delete this publication");
+        }
 
-    kafkaTemplate.send("blog-deleted", publication.getId());
+        publicationRepository.delete(publication);
+
+        try {
+            searchService.delete(publication.getId());
+        } catch (Exception e) {
+            System.err.println("Search deletion failed: " + e.getMessage());
+        }
+
+        try {
+            kafkaTemplate.send("blog-deleted", publication.getId());
+        } catch (Exception e) {
+            System.err.println("Kafka notification failed: " + e.getMessage());
+        }
+    }
 
     auditLogService.log(
             userId,
-            "DELETE_PUBLICATION",
+            "DELETE_PUBLICATION: " + (reason != null ? reason : "No reason provided"),
             noteId
     );
 }
 
-public void incrementViews(String slug) {
+    public void incrementViews(String slug) {
+        Query query = new Query(
+                Criteria.where("slug").is(slug)
+        );
 
-    Query query = new Query(
-            Criteria.where("slug").is(slug)
-    );
+        Update update = new Update().inc("views", 1);
 
-    Update update = new Update().inc("views", 1);
+        mongoTemplate.updateFirst(query, update, Publication.class);
+    }
 
-    mongoTemplate.updateFirst(query, update, Publication.class);
-}
+    public org.springframework.data.domain.Page<Publication> findByAuthor(UUID authorId, org.springframework.data.domain.Pageable pageable) {
+        return publicationRepository.findByAuthorId(authorId, pageable);
+    }
 }

@@ -59,12 +59,14 @@ public class PermissionService {
     public void checkOwnerAccess(UUID workspaceId) {
 
         UUID userId = authService.getCurrentUser().getId();
+        checkOwnerAccess(workspaceId, userId);
+    }
 
+    public void checkOwnerAccess(UUID workspaceId, UUID userId) {
         String role = workspaceService
                 .getUserRole(workspaceId, userId);
 
         if (!role.equalsIgnoreCase("OWNER")) {
-
             throw new AccessDeniedException(
                     "Only OWNER allowed. Your role: " + role);
         }

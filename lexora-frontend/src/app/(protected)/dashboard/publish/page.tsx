@@ -14,6 +14,7 @@ import type {
   MediaResponse,
   NoteResponse,
   Paged,
+  PublicationRow,
   PublishResponse,
   WorkspaceResponse,
 } from "@/types/api";
@@ -21,7 +22,7 @@ import { useAuth } from "@/context/AuthContext";
 import { SOCKET_URL } from "@/lib/config";
 import { io, Socket } from "socket.io-client";
 import StyleToolbox, { StyleState } from '@/components/StyleToolbox';
-import { Copy, Send, Layers } from "lucide-react";
+import { Copy, Send, Layers, Trash2, AlertCircle } from "lucide-react";
 
 const NO_WORKSPACE_ID = "NO_WORKSPACE";
 
@@ -49,6 +50,13 @@ export default function PublishStudioPage() {
   const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [myPublications, setMyPublications] = useState<PublicationRow[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteReason, setDeleteReason] = useState("Information is outdated");
+  const [customReason, setCustomReason] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [totalPublications, setTotalPublications] = useState(0);
 
   const [style, setStyle] = useState<StyleState>({
     alignment: 'left',
@@ -143,6 +151,13 @@ export default function PublishStudioPage() {
       setMediaPick(page.content ?? []);
     } else {
       setMediaPick([]);
+    }
+
+    const pubRes = await apiFetch("/api/publication/me?page=0&size=10", userHeaderInit());
+    if (pubRes.ok) {
+        const page = (await pubRes.json()) as Paged<PublicationRow>;
+        setMyPublications(page.content ?? []);
+        setTotalPublications(page.totalElements ?? 0);
     }
   }, [wsId]);
 
@@ -268,6 +283,42 @@ export default function PublishStudioPage() {
       push("error", (error as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDeletePublication() {
+    if (!deletingId || deletingId === "undefined" || deletingId === "null") {
+        push("error", "Invalid publication ID");
+        return;
+    }
+    
+    const finalReason = deleteReason === "Other" ? customReason : deleteReason;
+    
+    if (!finalReason.trim()) {
+        push("warning", "Please provide a reason for deletion");
+        return;
+    }
+
+    setIsDeleting(true);
+    try {
+        const res = await apiFetch(`/api/publication/${deletingId}?reason=${encodeURIComponent(finalReason)}`, userHeaderInit({
+            method: "DELETE",
+        }));
+
+        if (!res.ok) {
+            const err = await parseJson<{ error?: string; message?: string }>(res);
+            throw new Error(err?.error || err?.message || `Server error: ${res.status}`);
+        }
+
+        push("success", "Publication withdrawn successfully");
+        setShowDeleteModal(false);
+        setDeletingId(null);
+        setDeleteReason("");
+        await reload();
+    } catch (error) {
+        push("error", (error as Error).message);
+    } finally {
+        setIsDeleting(false);
     }
   }
 
@@ -785,8 +836,144 @@ export default function PublishStudioPage() {
               {activity.length === 0 && <li>No recent publishing activity yet.</li>}
             </ul>
           </section>
+
+          <section className="lx-card">
+            <h2 className="text-sm font-semibold text-[var(--lx-text)] flex items-center gap-2">
+                <span>My Published Articles</span>
+                <span className="px-2 py-0.5 rounded-full bg-[var(--lx-primary)]/10 text-[var(--lx-primary)] text-[10px]">
+                    {totalPublications}
+                </span>
+            </h2>
+            <div className="mt-4 space-y-3">
+              {myPublications.map((pub) => (
+                <div key={pub.id} className="group p-3 rounded-2xl bg-[var(--lx-panel-solid)] border border-[var(--lx-border)] hover:border-[var(--lx-primary)]/30 transition-all">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-[var(--lx-text)] truncate">{pub.title}</p>
+                      <p className="text-[10px] text-[var(--lx-text-muted)] mt-1 flex items-center gap-2">
+                        <span className="font-mono">/blog/{pub.slug}</span>
+                        <span>•</span>
+                        <span>{pub.publishedAt ? new Date(pub.publishedAt).toLocaleDateString() : 'N/A'}</span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-40 group-hover:opacity-100"
+                      title="Withdraw Publication"
+                      onClick={() => {
+                        const idToUse = pub.noteId || pub.id;
+                        if (idToUse) {
+                            setDeletingId(idToUse);
+                            setShowDeleteModal(true);
+                        } else {
+                            push("error", "Unable to determine publication ID");
+                        }
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 text-[10px] text-[var(--lx-text-muted)]">
+                            <span className="font-bold text-[var(--lx-text)]">{pub.views || 0}</span>
+                            <span>views</span>
+                        </div>
+                    </div>
+                    <Link 
+                        href={`/blog/${pub.slug}`}
+                        target="_blank"
+                        className="text-[10px] font-bold text-[var(--lx-primary)] hover:underline"
+                    >
+                        View Publicly
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {myPublications.length === 0 && (
+                <p className="text-xs text-[var(--lx-text-muted)] text-center py-4">No published articles yet.</p>
+              )}
+            </div>
+          </section>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="lx-card w-full max-w-md p-6 space-y-6 shadow-2xl border-red-500/20 bg-[var(--lx-panel)] animate-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-4 text-red-500">
+                    <div className="p-3 rounded-full bg-red-500/10">
+                        <AlertCircle size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold">Withdraw Publication</h3>
+                        <p className="text-xs text-[var(--lx-text-muted)]">This action will remove the article from the public library.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <label className="text-xs font-bold uppercase tracking-widest text-[var(--lx-text-muted)]">Select Reason</label>
+                    <div className="grid gap-2">
+                        {[
+                            "Information is outdated",
+                            "Found errors in the content",
+                            "Withdrawing for personal reasons",
+                            "Duplicated post",
+                            "Other"
+                        ].map((option) => (
+                            <button
+                                key={option}
+                                type="button"
+                                className={`flex items-center justify-between p-3 rounded-xl border text-sm transition-all ${
+                                    deleteReason === option 
+                                        ? "border-red-500 bg-red-500/10 text-red-500" 
+                                        : "border-[var(--lx-border)] bg-[var(--lx-panel-solid)] text-[var(--lx-text-muted)] hover:border-red-500/30"
+                                }`}
+                                onClick={() => setDeleteReason(option)}
+                            >
+                                <span>{option}</span>
+                                {deleteReason === option && <div className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />}
+                            </button>
+                        ))}
+                    </div>
+
+                    {deleteReason === "Other" && (
+                        <div className="animate-in slide-in-from-top-2 duration-200">
+                            <textarea 
+                                className="lx-input min-h-[80px] border-red-500/20 focus:border-red-500/50"
+                                placeholder="Please specify your reason..."
+                                value={customReason}
+                                onChange={(e) => setCustomReason(e.target.value)}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                    <button 
+                        className="lx-btn-secondary flex-1"
+                        onClick={() => {
+                            setShowDeleteModal(false);
+                            setDeletingId(null);
+                            setDeleteReason("Information is outdated");
+                            setCustomReason("");
+                        }}
+                        disabled={isDeleting}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="lx-btn-primary flex-1 bg-red-600 hover:bg-red-700 shadow-red-600/20"
+                        onClick={() => void handleDeletePublication()}
+                        disabled={isDeleting}
+                    >
+                        {isDeleting ? "Withdrawing..." : "Confirm Delete"}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

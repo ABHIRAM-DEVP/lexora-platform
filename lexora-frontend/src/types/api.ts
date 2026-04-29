@@ -70,6 +70,7 @@ export type Paged<T> = {
 
 export type PublicationRow = {
   id: string;
+  noteId?: string;
   title: string;
   slug: string;
   content?: string;
